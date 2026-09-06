@@ -292,7 +292,10 @@ function SlotCell({
 
   return (
     <button className={`slot ${slot.state}`} onClick={() => onOpen(r.id)}>
-      <span className="who">{r.customer?.name ?? 'Walk-in'}</span>
+      <span className="who">
+        {r.customer?.name ?? 'Walk-in'}
+        {r.seriesId && <span className="repeat-badge" title="Recurring booking">↻</span>}
+      </span>
       <span className="meta">
         {rupees(r.amountPaise)}
         {r.duePaise > 0 ? <span className="due-flag"> · {rupees(r.duePaise)} due</span> : <span className="paid-flag"> · paid</span>}

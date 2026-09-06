@@ -58,6 +58,7 @@ export interface ReservationSummary {
   duePaise: number;
   notes: string | null;
   blockReason: string | null;
+  seriesId: string | null;
   customer: { id: string; name: string; phone: string } | null;
 }
 
@@ -142,4 +143,48 @@ export interface ReportSummary {
   collectedPaise: number;
   outstandingPaise: number;
   byCourt: { resourceId: string; name: string; sport: string; bookings: number; billedPaise: number; bookedMinutes: number }[];
+}
+
+export interface BookingSeries {
+  id: string;
+  dayOfWeek: number;
+  startsAt: string;
+  durationMinutes: number;
+  startsOn: string;
+  endsOn: string | null;
+  amountPaise: number | null;
+  notes: string | null;
+  status: 'active' | 'ended';
+  materialisedThrough: string | null;
+  resourceId: string;
+  resourceName: string;
+  sport: string;
+  venueId: string;
+  timezone: string;
+  customerId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  upcoming: number;
+}
+
+export interface SeriesOccurrence {
+  id: string;
+  occurrenceDate: string;
+  during: { start: string; end: string };
+  status: string;
+  amountPaise: number;
+}
+
+export interface SeriesDetail extends BookingSeries {
+  occurrences: SeriesOccurrence[];
+}
+
+export interface MaterialiseResult {
+  created: { date: string; reservationId: string; amountPaise: number }[];
+  skipped: { date: string; reason: 'clash' | 'closed' | 'outside-hours' | 'already-booked'; detail: string }[];
+  materialisedThrough: string;
+}
+
+export interface CreateSeriesResult extends MaterialiseResult {
+  series: BookingSeries;
 }

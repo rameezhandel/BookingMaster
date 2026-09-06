@@ -181,6 +181,31 @@ cannot reconcile against, and therefore will not use.
 > error. It is now a joined aggregate (`src/common/paid-totals.ts`), with a
 > regression test. Wrong money that does not throw is the worst kind of wrong.
 
+### Recurring bookings are a rule, not copied rows
+
+Academies and regular weekly groups are a large slice of court revenue, and an
+owner re-entering the same booking every week will stop doing it.
+
+A `booking_series` holds the rule — court, weekday, time, duration. The bookings
+it produces are ordinary reservations, so every guarantee the calendar already
+relies on still applies: each occurrence goes through the same exclusion
+constraint, and a recurring booking can never quietly overwrite a one-off that
+got there first.
+
+Occurrences are inserted **one at a time, not in a single transaction**. A clash
+in week three must not roll back the eleven weeks that were bookable. Whatever
+could not be created comes back as `skipped` with a reason — clash, closure,
+outside opening hours — because an owner who believes they have a Tuesday slot
+for six months, and does not, finds out at the worst possible moment.
+
+A unique index on `(series_id, occurrence_date)` for live rows makes
+re-materialising safe to retry, and a nightly job rolls active series forward so
+a weekly group never runs out of bookings. That job takes a Postgres advisory
+lock, so several replicas do not duplicate the work.
+
+Ending a series cancels from today forward by default. Bookings already played,
+or already paid for, are history and stay on the books.
+
 ### Multi-tenancy from the first migration
 
 Every tenant-owned row carries `tenant_id`, and services take it as an explicit
@@ -212,6 +237,7 @@ backend/
     pricing/         price rules and the pure resolver
     calendar/        day and week availability
     reservations/    quick-book, blocks, cancellations, status
+    series/          recurring bookings and the nightly extension job
     payments/        the ledger
     reports/         billed, collected, outstanding
   test/              unit tests plus the concurrency proof
@@ -238,8 +264,8 @@ out makes you a payment facilitator, with float, reconciliation and chargebacks
 attached. Be software first.
 
 **Phase 2.** WhatsApp confirmations (template approval takes days — start early),
-a cancellation-policy engine as tenant config, recurring weekly bookings, GST
-invoicing with a gapless per-tenant sequence.
+a cancellation-policy engine as tenant config, GST invoicing with a gapless
+per-tenant sequence.
 
 **Later — halls.** Wedding and function halls sell a *date*, not an hour, and the
 booking is a CRM pipeline — enquiry, site visit, quote, advance — before it is

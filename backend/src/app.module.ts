@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +17,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReservationsModule } from './reservations/reservations.module';
+import { SeriesModule } from './series/series.module';
 import { VenuesModule } from './venues/venues.module';
 
 /**
@@ -49,6 +51,7 @@ function webApp(): DynamicModule[] {
     // A blunt ceiling on request volume per IP. The strict limit that actually
     // matters is on the auth routes; see AuthController.
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     AuthModule,
@@ -57,6 +60,7 @@ function webApp(): DynamicModule[] {
     PricingModule,
     CustomersModule,
     ReservationsModule,
+    SeriesModule,
     PaymentsModule,
     CalendarModule,
     ReportsModule,

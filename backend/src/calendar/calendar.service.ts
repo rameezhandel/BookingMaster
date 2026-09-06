@@ -195,6 +195,7 @@ export class CalendarService {
         amountPaise: reservations.amountPaise,
         notes: reservations.notes,
         blockReason: reservations.blockReason,
+        seriesId: reservations.seriesId,
         customerId: customers.id,
         customerName: customers.name,
         customerPhone: customers.phone,
@@ -232,6 +233,7 @@ function summarise(r: {
   paidPaise: number;
   notes: string | null;
   blockReason: string | null;
+  seriesId: string | null;
   customerId: string | null;
   customerName: string | null;
   customerPhone: string | null;
@@ -247,6 +249,7 @@ function summarise(r: {
     duePaise: Number(r.amountPaise) - Number(r.paidPaise),
     notes: r.notes,
     blockReason: r.blockReason,
+    seriesId: r.seriesId,
     customer: r.customerId
       ? { id: r.customerId, name: r.customerName, phone: r.customerPhone }
       : null,

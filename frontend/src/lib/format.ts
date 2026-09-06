@@ -43,6 +43,17 @@ export function shiftDate(dateISO: string, days: number): string {
 
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** "Tuesdays at 19:00" reads properly; "Tues at 19:00" does not. */
+export const DAY_PLURALS = [
+  'Sundays',
+  'Mondays',
+  'Tuesdays',
+  'Wednesdays',
+  'Thursdays',
+  'Fridays',
+  'Saturdays',
+];
+
 export function describeDays(days: number[]): string {
   if (days.length === 7) return 'Every day';
   if (days.length === 2 && days.includes(0) && days.includes(6)) return 'Weekends';

@@ -249,6 +249,8 @@ export class ReservationsService {
       amountPaise: reservations.amountPaise,
       notes: reservations.notes,
       blockReason: reservations.blockReason,
+      seriesId: reservations.seriesId,
+      occurrenceDate: reservations.occurrenceDate,
       createdAt: reservations.createdAt,
       resourceId: resources.id,
       resourceName: resources.name,

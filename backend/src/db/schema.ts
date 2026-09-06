@@ -190,12 +190,41 @@ export const reservations = pgTable(
     notes: text('notes'),
     blockReason: text('block_reason'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    /** Set when this booking was produced by a recurring series. */
+    seriesId: uuid('series_id'),
+    occurrenceDate: date('occurrence_date'),
     createdBy: uuid('created_by'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ tenantCreatedIdx: index('reservation_tenant_created_idx').on(t.tenantId, t.createdAt) }),
+);
+
+export const bookingSeries = pgTable(
+  'booking_series',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    resourceId: uuid('resource_id').notNull(),
+    customerId: uuid('customer_id'),
+    /** 0 = Sunday .. 6 = Saturday. */
+    dayOfWeek: smallint('day_of_week').notNull(),
+    startsAt: time('starts_at').notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    startsOn: date('starts_on').notNull(),
+    endsOn: date('ends_on'),
+    /** null = price each occurrence from the price rules as it is created. */
+    amountPaise: bigint('amount_paise', { mode: 'number' }),
+    notes: text('notes'),
+    status: text('status').$type<'active' | 'ended'>().notNull().default('active'),
+    materialisedThrough: date('materialised_through'),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantIdx: index('booking_series_tenant_idx').on(t.tenantId, t.status) }),
 );
 
 export const payments = pgTable(

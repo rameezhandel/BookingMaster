@@ -351,3 +351,17 @@ table.grid th .hours { display: block; font-weight: 500; color: var(--text-faint
 .day-row .window { display: flex; gap: 6px; align-items: center; }
 .day-row .window input { width: 106px; }
 .day-row .closed-note { color: var(--text-faint); font-size: 12px; padding-top: 8px; }
+
+/* --------------------------------------------------------- recurring -- */
+
+.repeat-box {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 11px 12px; background: var(--surface-2); margin-top: 4px;
+}
+.checkline { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 13px; font-weight: 500; color: var(--text); text-transform: none; }
+.checkline input { width: auto; margin: 0; }
+.repeat-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+}
