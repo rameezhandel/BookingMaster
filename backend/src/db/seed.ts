@@ -9,7 +9,18 @@ import { DateTime } from 'luxon';
 import { Pool } from 'pg';
 import { loadEnv } from './env';
 import * as schema from './schema';
-import { customers, priceRules, reservations, resources, tenants, users, venues, payments } from './schema';
+import {
+  customers,
+  payments,
+  priceRules,
+  reservations,
+  resourceHourRules,
+  resources,
+  tenants,
+  users,
+  venueDateOverrides,
+  venues,
+} from './schema';
 
 loadEnv();
 
@@ -52,11 +63,13 @@ async function main() {
       .returning();
 
     const courtSpecs = [
-      { name: 'Court 1', sport: 'badminton', slotMinutes: 60, opensAt: '06:00', closesAt: '23:00' },
-      { name: 'Court 2', sport: 'badminton', slotMinutes: 60, opensAt: '06:00', closesAt: '23:00' },
-      { name: 'Court 3', sport: 'badminton', slotMinutes: 60, opensAt: '06:00', closesAt: '23:00' },
-      { name: 'Box Cricket Turf', sport: 'cricket', slotMinutes: 60, opensAt: '06:00', closesAt: '24:00' },
-      { name: 'Tennis Court', sport: 'tennis', slotMinutes: 60, opensAt: '06:00', closesAt: '22:00' },
+      { name: 'Court 1', sport: 'badminton', slotMinutes: 60, weekday: ['06:00', '23:00'], weekend: ['05:00', '23:00'] },
+      { name: 'Court 2', sport: 'badminton', slotMinutes: 60, weekday: ['06:00', '23:00'], weekend: ['05:00', '23:00'] },
+      // Blocked out for a school every weekday afternoon: the split day the old
+      // single opens/closes pair could not express.
+      { name: 'Court 3', sport: 'badminton', slotMinutes: 60, weekday: ['06:00', '13:00'], weekdayEvening: ['17:00', '23:00'], weekend: ['06:00', '23:00'] },
+      { name: 'Box Cricket Turf', sport: 'cricket', slotMinutes: 60, weekday: ['06:00', '24:00'], weekend: ['06:00', '24:00'] },
+      { name: 'Tennis Court', sport: 'tennis', slotMinutes: 60, weekday: ['06:00', '22:00'], weekend: ['06:00', '22:00'] },
     ];
 
     const courts = await db
@@ -66,10 +79,38 @@ async function main() {
           tenantId: tenant.id,
           venueId: venue.id,
           sortOrder: i,
-          ...spec,
+          name: spec.name,
+          sport: spec.sport,
+          slotMinutes: spec.slotMinutes,
         })),
       )
       .returning();
+
+    // Weekday and weekend hours differ, which is true of nearly every venue.
+    for (const [i, court] of courts.entries()) {
+      const spec = courtSpecs[i];
+      const windows: { dayOfWeek: number; opensAt: string; closesAt: string }[] = [];
+
+      for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        if (isWeekend) {
+          windows.push({ dayOfWeek, opensAt: spec.weekend[0], closesAt: spec.weekend[1] });
+        } else {
+          windows.push({ dayOfWeek, opensAt: spec.weekday[0], closesAt: spec.weekday[1] });
+          if (spec.weekdayEvening) {
+            windows.push({
+              dayOfWeek,
+              opensAt: spec.weekdayEvening[0],
+              closesAt: spec.weekdayEvening[1],
+            });
+          }
+        }
+      }
+
+      await db.insert(resourceHourRules).values(
+        windows.map((w) => ({ tenantId: tenant.id, resourceId: court.id, ...w })),
+      );
+    }
 
     // Base rate everywhere, then evening peak and a weekend premium on top.
     // Higher priority wins, so the layering reads the way an owner describes it.
@@ -176,6 +217,27 @@ async function main() {
       }
     }
 
+    // A holiday closure and a court that opens late that day, so the override
+    // layering is visible in the seeded data.
+    const holiday = today.plus({ days: 5 });
+    await db.insert(venueDateOverrides).values({
+      tenantId: tenant.id,
+      venueId: venue.id,
+      onDate: holiday.toISODate()!,
+      isClosed: true,
+      reason: 'Diwali',
+    });
+    await db.insert(venueDateOverrides).values({
+      tenantId: tenant.id,
+      venueId: venue.id,
+      resourceId: courts[3].id,
+      onDate: holiday.toISODate()!,
+      isClosed: false,
+      opensAt: '18:00',
+      closesAt: '23:00',
+      reason: 'Evening only',
+    });
+
     // A maintenance block, so the calendar shows both kinds of occupancy.
     await db.insert(reservations).values({
       tenantId: tenant.id,
@@ -193,6 +255,7 @@ async function main() {
     console.log('\nSeeded demo data.');
     console.log(`  venue    ${venue.name}`);
     console.log(`  courts   ${courts.length}`);
+    console.log(`  closed   ${holiday.toISODate()} (Diwali), turf open 18:00-23:00`);
     console.log(`  login    ${DEMO_EMAIL} / ${DEMO_PASSWORD}\n`);
   } finally {
     await pool.end();

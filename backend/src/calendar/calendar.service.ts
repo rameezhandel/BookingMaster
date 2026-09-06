@@ -3,7 +3,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { DB, type Db } from '../db/database.module';
 import { OCCUPYING_STATUSES, customers, reservations } from '../db/schema';
-import { generateSlots, overlaps, startOfDay } from '../common/time';
+import { overlaps, startOfDay } from '../common/time';
+import { openingFor, slotsForWindows } from '../availability/resolve';
+import { HoursService } from '../availability/hours.service';
 import { paidTotals, toPaise } from '../common/paid-totals';
 import { PricingService } from '../pricing/pricing.service';
 import { VenuesService } from '../venues/venues.service';
@@ -18,6 +20,7 @@ export class CalendarService {
     @Inject(DB) private readonly db: Db,
     private readonly venues: VenuesService,
     private readonly pricing: PricingService,
+    private readonly hours: HoursService,
   ) {}
 
   /**
@@ -38,18 +41,22 @@ export class CalendarService {
     const dayEnd = dayStart.plus({ days: 1 });
     const now = DateTime.now().setZone(tz);
 
-    const occupied = await this.occupancy(tenantId, venueId, dayStart.toJSDate(), dayEnd.toJSDate());
-    const rulesByResource = await this.pricing.rulesForResources(
-      tenantId,
-      courts.map((c) => c.id),
-    );
+    const courtIds = courts.map((c) => c.id);
+    const [occupied, rulesByResource, hourRules, overrides] = await Promise.all([
+      this.occupancy(tenantId, venueId, dayStart.toJSDate(), dayEnd.toJSDate()),
+      this.pricing.rulesForResources(tenantId, courtIds),
+      this.hours.rulesForResources(tenantId, courtIds),
+      this.hours.overridesForRange(tenantId, venueId, date, date),
+    ]);
+    const dayOfWeek = dayStart.weekday % 7;
 
     let bookedSlots = 0;
     let totalSlots = 0;
     let bookedPaise = 0;
 
     const grid = courts.map((court) => {
-      const slots = generateSlots(date, tz, court.opensAt, court.closesAt, court.slotMinutes);
+      const opening = openingFor(date, dayOfWeek, court.id, hourRules, overrides);
+      const slots = slotsForWindows(date, tz, opening.windows, court.slotMinutes);
       const forCourt = occupied.filter((r) => r.resourceId === court.id);
       const rules = rulesByResource.get(court.id) ?? [];
 
@@ -90,8 +97,12 @@ export class CalendarService {
         name: court.name,
         sport: court.sport,
         slotMinutes: court.slotMinutes,
-        opensAt: court.opensAt,
-        closesAt: court.closesAt,
+        // What the court is actually doing today, so the UI can say "closed for
+        // Diwali" rather than silently rendering an empty column.
+        closed: opening.closed,
+        closedReason: opening.reason,
+        openingSource: opening.source,
+        windows: opening.windows,
         slots: rendered,
         offGrid,
       };
@@ -120,19 +131,37 @@ export class CalendarService {
     const tz = venue.timezone;
 
     const weekStart = startOfDay(date, tz).startOf('week');
-    const days: { date: string; bookedSlots: number; totalSlots: number; occupancyPct: number }[] = [];
+    const days: {
+      date: string;
+      bookedSlots: number;
+      totalSlots: number;
+      occupancyPct: number;
+      closed: boolean;
+    }[] = [];
 
     const rangeStart = weekStart.toJSDate();
     const rangeEnd = weekStart.plus({ days: 7 }).toJSDate();
-    const occupied = await this.occupancy(tenantId, venueId, rangeStart, rangeEnd);
+    const lastDate = weekStart.plus({ days: 6 }).toISODate()!;
+    const courtIds = courts.map((c) => c.id);
+
+    const [occupied, hourRules, overrides] = await Promise.all([
+      this.occupancy(tenantId, venueId, rangeStart, rangeEnd),
+      this.hours.rulesForResources(tenantId, courtIds),
+      this.hours.overridesForRange(tenantId, venueId, weekStart.toISODate()!, lastDate),
+    ]);
 
     for (let i = 0; i < 7; i++) {
-      const dayISO = weekStart.plus({ days: i }).toISODate()!;
+      const day = weekStart.plus({ days: i });
+      const dayISO = day.toISODate()!;
+      const dayOfWeek = day.weekday % 7;
       let total = 0;
       let booked = 0;
+      let closedCourts = 0;
 
       for (const court of courts) {
-        const slots = generateSlots(dayISO, tz, court.opensAt, court.closesAt, court.slotMinutes);
+        const opening = openingFor(dayISO, dayOfWeek, court.id, hourRules, overrides);
+        if (opening.closed) closedCourts++;
+        const slots = slotsForWindows(dayISO, tz, opening.windows, court.slotMinutes);
         total += slots.length;
         const forCourt = occupied.filter((r) => r.resourceId === court.id);
         booked += slots.filter((slot) =>
@@ -145,6 +174,8 @@ export class CalendarService {
         bookedSlots: booked,
         totalSlots: total,
         occupancyPct: total === 0 ? 0 : Math.round((booked / total) * 100),
+        // Every court shut means the venue is shut, which the strip should show.
+        closed: courts.length > 0 && closedCourts === courts.length,
       });
     }
 

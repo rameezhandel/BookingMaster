@@ -136,6 +136,22 @@ backfill. Changing a court's hours changes tomorrow's calendar immediately.
 Ranges are half-open — `[19:00, 20:00)` — which is what makes 19:00–20:00 and
 20:00–21:00 adjacent rather than overlapping.
 
+Opening hours resolve in three layers, most specific first:
+
+1. a **date override for one court** — "the turf opens 18:00–23:00 on Diwali"
+2. a **date override for the whole venue** — "we're shut on the 26th"
+3. the **weekly rules** — per weekday, and more than one window per day, because
+   venues really do close midday for school or academy hours
+
+A day with no window is closed, and generates no slots at all. That is different
+from a `block` reservation, which occupies a slot that does exist. Booking into
+closed hours is refused unless the caller passes `allowOutsideHours` — the owner
+is the authority, but it should be a decision rather than a slip.
+
+Non-overlap of opening windows is enforced by the database too, with the same
+kind of exclusion constraint used for bookings (over a custom `timerange` type,
+since Postgres ships range types for dates and timestamps but not for `time`).
+
 ### Pricing is data, not branches
 
 A `price_rule` row carries a day mask, a time window, an optional date range, a

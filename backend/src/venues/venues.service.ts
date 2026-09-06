@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { DB, type Db } from '../db/database.module';
-import { OCCUPYING_STATUSES, reservations, resources, venues } from '../db/schema';
+import { OCCUPYING_STATUSES, reservations, resourceHourRules, resources, venues } from '../db/schema';
 import { timeToMinutes } from '../common/time';
 import type { CreateResourceDto, CreateVenueDto, UpdateResourceDto, UpdateVenueDto } from './dto';
 
@@ -85,27 +85,37 @@ export class VenuesService {
     const closesAt = dto.closesAt ?? '23:00';
     this.assertHours(opensAt, closesAt, dto.slotMinutes ?? 60);
 
-    const [resource] = await this.db
-      .insert(resources)
-      .values({
-        tenantId,
-        venueId,
-        name: dto.name,
-        sport: dto.sport,
-        slotMinutes: dto.slotMinutes ?? 60,
-        opensAt,
-        closesAt,
-        sortOrder: dto.sortOrder ?? 0,
-      })
-      .returning();
-    return resource;
+    // The court and a week of opening hours are created together: a court with
+    // no hours generates no slots, which would look like a broken calendar.
+    return this.db.transaction(async (tx) => {
+      const [resource] = await tx
+        .insert(resources)
+        .values({
+          tenantId,
+          venueId,
+          name: dto.name,
+          sport: dto.sport,
+          slotMinutes: dto.slotMinutes ?? 60,
+          sortOrder: dto.sortOrder ?? 0,
+        })
+        .returning();
+
+      await tx.insert(resourceHourRules).values(
+        [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+          tenantId,
+          resourceId: resource.id,
+          dayOfWeek,
+          opensAt,
+          closesAt,
+        })),
+      );
+
+      return resource;
+    });
   }
 
   async updateResource(tenantId: string, resourceId: string, dto: UpdateResourceDto) {
-    const existing = await this.getResource(tenantId, resourceId);
-    const opensAt = dto.opensAt ?? existing.opensAt;
-    const closesAt = dto.closesAt ?? existing.closesAt;
-    this.assertHours(opensAt, closesAt, dto.slotMinutes ?? existing.slotMinutes);
+    await this.getResource(tenantId, resourceId);
 
     const [resource] = await this.db
       .update(resources)

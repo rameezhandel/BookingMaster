@@ -86,14 +86,49 @@ export const resources = pgTable(
     name: text('name').notNull(),
     sport: text('sport').notNull(),
     slotMinutes: integer('slot_minutes').notNull().default(60),
-    opensAt: time('opens_at').notNull().default('06:00'),
-    closesAt: time('closes_at').notNull().default('23:00'),
+    // Opening hours live in resourceHourRules; a court can keep different hours
+    // on each weekday and more than one window per day.
     isActive: boolean('is_active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ venueIdx: index('resource_venue_idx').on(t.venueId, t.sortOrder) }),
+);
+
+export const resourceHourRules = pgTable(
+  'resource_hour_rule',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    resourceId: uuid('resource_id').notNull(),
+    /** 0 = Sunday .. 6 = Saturday. */
+    dayOfWeek: smallint('day_of_week').notNull(),
+    opensAt: time('opens_at').notNull(),
+    closesAt: time('closes_at').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ resourceIdx: index('resource_hour_rule_resource_idx').on(t.resourceId, t.dayOfWeek) }),
+);
+
+/** A holiday, an early close, a tournament day. resourceId null = whole venue. */
+export const venueDateOverrides = pgTable(
+  'venue_date_override',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    resourceId: uuid('resource_id'),
+    onDate: date('on_date').notNull(),
+    isClosed: boolean('is_closed').notNull().default(true),
+    opensAt: time('opens_at'),
+    closesAt: time('closes_at'),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ lookupIdx: index('venue_date_override_lookup_idx').on(t.venueId, t.onDate) }),
 );
 
 export const priceRules = pgTable(

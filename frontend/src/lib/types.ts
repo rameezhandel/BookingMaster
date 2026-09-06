@@ -11,10 +11,27 @@ export interface Court {
   name: string;
   sport: string;
   slotMinutes: number;
-  opensAt: string;
-  closesAt: string;
   isActive: boolean;
   sortOrder: number;
+}
+
+/** One open window on one weekday. A day may have more than one. */
+export interface HourWindow {
+  id?: string;
+  dayOfWeek: number;
+  opensAt: string;
+  closesAt: string;
+}
+
+export interface DateOverride {
+  id: string;
+  venueId: string;
+  resourceId: string | null;
+  onDate: string;
+  isClosed: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
+  reason: string | null;
 }
 
 export interface PriceRule {
@@ -55,7 +72,11 @@ export interface Slot {
   reservation: ReservationSummary | null;
 }
 
-export interface CalendarCourt extends Pick<Court, 'id' | 'name' | 'sport' | 'slotMinutes' | 'opensAt' | 'closesAt'> {
+export interface CalendarCourt extends Pick<Court, 'id' | 'name' | 'sport' | 'slotMinutes'> {
+  closed: boolean;
+  closedReason: string | null;
+  openingSource: 'weekly' | 'venue-override' | 'court-override';
+  windows: { opensAt: string; closesAt: string }[];
   slots: Slot[];
   offGrid: ReservationSummary[];
 }
@@ -73,6 +94,7 @@ export interface WeekDay {
   bookedSlots: number;
   totalSlots: number;
   occupancyPct: number;
+  closed: boolean;
 }
 
 export interface Customer {

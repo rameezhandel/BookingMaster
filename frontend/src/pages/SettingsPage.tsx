@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ClosuresCard } from '../components/ClosuresCard';
+import { HoursModal } from '../components/HoursModal';
 import { Modal } from '../components/Modal';
 import { ApiError, del, get, patch, post } from '../lib/api';
 import { DAY_NAMES, describeDays, paiseFromRupeeInput, rupees, shortTime } from '../lib/format';
@@ -9,12 +11,19 @@ export function SettingsPage() {
   const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
   const venue = venues?.[0];
 
+  const { data: courts } = useQuery({
+    queryKey: ['courts', venue?.id],
+    queryFn: () => get<Court[]>(`/venues/${venue!.id}/resources?includeInactive=true`),
+    enabled: !!venue,
+  });
+
   if (!venue) return <div className="empty card">No venue yet.</div>;
 
   return (
     <div className="stack">
       <VenueCard venue={venue} />
       <CourtsCard venue={venue} />
+      <ClosuresCard venue={venue} courts={courts ?? []} />
     </div>
   );
 }
@@ -83,6 +92,7 @@ function CourtsCard({ venue }: { venue: Venue }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [pricingFor, setPricingFor] = useState<Court | null>(null);
+  const [hoursFor, setHoursFor] = useState<Court | null>(null);
 
   const { data: courts } = useQuery({
     queryKey: ['courts', venue.id],
@@ -126,7 +136,6 @@ function CourtsCard({ venue }: { venue: Venue }) {
             <tr>
               <th>Name</th>
               <th>Sport</th>
-              <th>Hours</th>
               <th>Slot</th>
               <th>Status</th>
               <th />
@@ -141,9 +150,6 @@ function CourtsCard({ venue }: { venue: Venue }) {
                 <td className="faint" style={{ textTransform: 'capitalize' }}>
                   {court.sport}
                 </td>
-                <td className="mono">
-                  {shortTime(court.opensAt)}–{shortTime(court.closesAt)}
-                </td>
                 <td className="mono">{court.slotMinutes}m</td>
                 <td>
                   <span className={`pill ${court.isActive ? 'confirmed' : 'cancelled'}`}>
@@ -152,6 +158,9 @@ function CourtsCard({ venue }: { venue: Venue }) {
                 </td>
                 <td className="num">
                   <div className="row" style={{ justifyContent: 'flex-end' }}>
+                    <button className="sm" onClick={() => setHoursFor(court)}>
+                      Hours
+                    </button>
                     <button className="sm" onClick={() => setPricingFor(court)}>
                       Pricing
                     </button>
@@ -173,6 +182,7 @@ function CourtsCard({ venue }: { venue: Venue }) {
       </div>
 
       {adding && <AddCourtModal venue={venue} onClose={() => setAdding(false)} />}
+      {hoursFor && <HoursModal court={hoursFor} onClose={() => setHoursFor(null)} />}
       {pricingFor && <PricingModal court={pricingFor} onClose={() => setPricingFor(null)} />}
     </>
   );
@@ -246,7 +256,10 @@ function AddCourtModal({ venue, onClose }: { venue: Venue; onClose: () => void }
           <input id="c-close" type="time" value={form.closesAt} onChange={(e) => setForm({ ...form, closesAt: e.target.value })} />
         </div>
       </div>
-      <div className="hint">Use 24:00 for a court that runs until midnight.</div>
+      <div className="hint">
+        These hours apply to every day to start with. Refine them per day, including midday
+        closures, with the Hours button afterwards.
+      </div>
     </Modal>
   );
 }

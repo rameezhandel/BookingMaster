@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -27,6 +28,13 @@ export class CreateReservationDto {
   @IsOptional() @IsInt() @Min(0) @Type(() => Number) amountPaise?: number;
 
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+
+  /**
+   * Book a court outside its opening hours. Off by default so a mis-click on a
+   * closed day is refused, but an owner who genuinely opened up for someone can
+   * still record it.
+   */
+  @IsOptional() @IsBoolean() allowOutsideHours?: boolean;
 }
 
 export class CreateBlockDto {

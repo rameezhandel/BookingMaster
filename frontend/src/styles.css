@@ -327,3 +327,27 @@ table.list .num { text-align: right; font-variant-numeric: tabular-nums; }
   .topbar { padding: 10px 12px; gap: 10px; }
   .stat { min-width: 96px; flex: 1; }
 }
+
+/* ------------------------------------------------- closed / hours -- */
+
+table.grid th .closed-tag {
+  display: block; font-weight: 600; font-size: 11px; color: var(--warn);
+  margin-top: 2px;
+}
+table.grid th .hours { display: block; font-weight: 500; color: var(--text-faint); font-size: 11px; }
+.weekstrip button.closed { border-style: dashed; }
+.weekstrip button.closed .occ { color: var(--warn); }
+
+.closed-col { background: var(--blocked); opacity: 0.45; }
+
+.day-row {
+  display: grid; grid-template-columns: 52px 1fr auto;
+  gap: 10px; align-items: start;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.day-row:last-child { border-bottom: none; }
+.day-row .dayname { font-weight: 650; font-size: 13px; padding-top: 7px; }
+.day-row .windows { display: flex; flex-direction: column; gap: 6px; }
+.day-row .window { display: flex; gap: 6px; align-items: center; }
+.day-row .window input { width: 106px; }
+.day-row .closed-note { color: var(--text-faint); font-size: 12px; padding-top: 8px; }

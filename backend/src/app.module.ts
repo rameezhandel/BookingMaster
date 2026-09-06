@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { AvailabilityModule } from './availability/availability.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { validateEnv } from './config/env.validation';
 import { CustomersModule } from './customers/customers.module';
@@ -52,6 +53,7 @@ function webApp(): DynamicModule[] {
     HealthModule,
     AuthModule,
     VenuesModule,
+    AvailabilityModule,
     PricingModule,
     CustomersModule,
     ReservationsModule,

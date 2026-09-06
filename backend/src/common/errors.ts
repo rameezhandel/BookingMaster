@@ -28,6 +28,16 @@ export class SlotUnavailableError extends ConflictException {
   }
 }
 
+/**
+ * The court is shut at that time. Carries its own code so the UI can offer
+ * "book anyway" rather than pattern-matching on prose.
+ */
+export class OutsideOpeningHoursError extends ConflictException {
+  constructor(message: string) {
+    super({ statusCode: 409, error: 'OutsideOpeningHours', message });
+  }
+}
+
 export function rethrowAsHttp(err: unknown): never {
   if (err instanceof HttpException) throw err;
 

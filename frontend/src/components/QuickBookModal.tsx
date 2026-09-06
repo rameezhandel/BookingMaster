@@ -33,6 +33,7 @@ export function QuickBookModal({ court, slotStart, slotEnd, suggestedPaise, time
   const [customer, setCustomer] = useState({ name: '', phone: '' });
   const [notes, setNotes] = useState('');
   const [amountTouched, setAmountTouched] = useState(false);
+  const [allowOutsideHours, setAllowOutsideHours] = useState(false);
   const [amount, setAmount] = useState(suggestedPaise !== null ? String(suggestedPaise / 100) : '');
 
   const end = DateTime.fromISO(slotStart).plus({ minutes }).toISO()!;
@@ -50,12 +51,15 @@ export function QuickBookModal({ court, slotStart, slotEnd, suggestedPaise, time
   const quoted = minutes === defaultMinutes ? suggestedPaise : (quote?.pricePaise ?? null);
   const effectiveAmount = amountTouched ? amount : quoted !== null ? String(quoted / 100) : '';
 
-  const save = useMutation({
-    mutationFn: () =>
+  // The variable is "book even though the court is shut", so the type has to be
+  // explicit: a defaulted parameter makes TanStack infer void.
+  const save = useMutation<unknown, Error, boolean>({
+    mutationFn: (force: boolean) =>
       post('/reservations', {
         resourceId: court.id,
         start: slotStart,
         end,
+        ...(force ? { allowOutsideHours: true } : {}),
         ...(customer.name.trim() && customer.phone.trim()
           ? { customer: { name: customer.name.trim(), phone: customer.phone.trim() } }
           : {}),
@@ -83,7 +87,7 @@ export function QuickBookModal({ court, slotStart, slotEnd, suggestedPaise, time
           <button onClick={onClose}>Cancel</button>
           <button
             className="primary"
-            onClick={() => save.mutate()}
+            onClick={() => save.mutate(allowOutsideHours)}
             disabled={save.isPending || halfFilled}
           >
             {save.isPending ? 'Saving…' : 'Book'}
@@ -104,7 +108,24 @@ export function QuickBookModal({ court, slotStart, slotEnd, suggestedPaise, time
         </div>
       </div>
 
-      {save.error instanceof ApiError && <div className="msg error">{save.error.message}</div>}
+      {save.error instanceof ApiError && (
+        <div className="msg error">
+          {save.error.message}
+          {save.error.code === 'OutsideOpeningHours' && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="sm"
+                onClick={() => {
+                  setAllowOutsideHours(true);
+                  save.mutate(true);
+                }}
+              >
+                Book anyway
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="duration">Duration</label>

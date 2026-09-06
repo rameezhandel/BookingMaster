@@ -137,12 +137,13 @@ export function CalendarPage() {
             return (
               <button
                 key={d.date}
-                className={d.date === date ? 'active' : ''}
+                className={[d.date === date ? 'active' : '', d.closed ? 'closed' : ''].join(' ').trim()}
                 onClick={() => setDate(d.date)}
+                title={d.closed ? 'Closed' : `${d.bookedSlots} of ${d.totalSlots} slots booked`}
               >
                 <span className="dow">{dt.toFormat('ccc')}</span>
                 <span className="dnum">{dt.toFormat('d')}</span>
-                <span className="occ">{d.totalSlots ? `${d.occupancyPct}%` : '—'}</span>
+                <span className="occ">{d.closed ? 'shut' : d.totalSlots ? `${d.occupancyPct}%` : '—'}</span>
               </button>
             );
           })}
@@ -183,6 +184,18 @@ export function CalendarPage() {
                 <th key={court.id}>
                   {court.name}
                   <span className="sport">{court.sport}</span>
+                  {court.closed ? (
+                    <span className="closed-tag">Closed{court.closedReason ? ` — ${court.closedReason}` : ''}</span>
+                  ) : (
+                    <span className="hours">
+                      {court.windows
+                        .map((w) => `${w.opensAt.slice(0, 5)}–${w.closesAt.slice(0, 5)}`)
+                        .join(', ')}
+                      {court.openingSource !== 'weekly' && court.closedReason
+                        ? ` · ${court.closedReason}`
+                        : ''}
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -195,7 +208,7 @@ export function CalendarPage() {
                   const slot = slotIndex.get(court.id)?.get(startISO);
                   if (!slot) {
                     return (
-                      <td key={court.id}>
+                      <td key={court.id} className={court.closed ? 'closed-col' : undefined}>
                         <div className="slot spacer" />
                       </td>
                     );
@@ -215,6 +228,14 @@ export function CalendarPage() {
           </tbody>
         </table>
       </div>
+
+      {data && data.courts.length > 0 && data.courts.every((c) => c.closed) && (
+        <p className="msg info" style={{ marginTop: 12 }}>
+          Every court is closed on this date
+          {data.courts[0].closedReason ? ` — ${data.courts[0].closedReason}` : ''}. Manage closures in
+          Settings.
+        </p>
+      )}
 
       {isLoading && <p className="faint" style={{ marginTop: 12 }}>Loading calendar…</p>}
 

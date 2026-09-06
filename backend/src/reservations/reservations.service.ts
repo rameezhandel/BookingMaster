@@ -8,9 +8,12 @@ import {
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { DB, type Db } from '../db/database.module';
 import { customers, payments, reservations, resources, venues, type ReservationStatus } from '../db/schema';
-import { rethrowAsHttp } from '../common/errors';
+import { OutsideOpeningHoursError, rethrowAsHttp } from '../common/errors';
 import { paidTotals, toPaise } from '../common/paid-totals';
-import { durationMinutes, type Interval } from '../common/time';
+import { DateTime } from 'luxon';
+import { durationMinutes, toISODate, type Interval } from '../common/time';
+import { HoursService } from '../availability/hours.service';
+import { isWithinOpening, openingFor } from '../availability/resolve';
 import { CustomersService } from '../customers/customers.service';
 import { PricingService } from '../pricing/pricing.service';
 import type { AuthUser } from '../common/current-user.decorator';
@@ -37,6 +40,7 @@ export class ReservationsService {
     @Inject(DB) private readonly db: Db,
     private readonly customersService: CustomersService,
     private readonly pricing: PricingService,
+    private readonly hours: HoursService,
   ) {}
 
   // ------------------------------------------------------------ writing --
@@ -49,6 +53,10 @@ export class ReservationsService {
   async create(user: AuthUser, dto: CreateReservationDto) {
     const interval = parseInterval(dto.start, dto.end);
     const resource = await this.loadResource(user.tenantId, dto.resourceId);
+
+    if (!dto.allowOutsideHours) {
+      await this.assertWithinOpeningHours(user.tenantId, resource, interval);
+    }
 
     const amountPaise =
       dto.amountPaise ?? (await this.autoPrice(user.tenantId, dto.resourceId, interval));
@@ -262,6 +270,43 @@ export class ReservationsService {
       .where(and(eq(payments.tenantId, tenantId), eq(payments.reservationId, row.id)))
       .orderBy(desc(payments.receivedAt));
     return { ...row, payments: rows };
+  }
+
+  /**
+   * Refuses a booking that falls outside the court's opening hours for that
+   * date, holidays included. Callers can override with allowOutsideHours: the
+   * owner is the authority, but it should be a decision rather than a slip.
+   */
+  private async assertWithinOpeningHours(
+    tenantId: string,
+    resource: { id: string; venueId: string },
+    interval: Interval,
+  ) {
+    const [venue] = await this.db.select().from(venues).where(eq(venues.id, resource.venueId)).limit(1);
+    const date = toISODate(interval.start, venue.timezone);
+    const dayOfWeek = DateTime.fromJSDate(interval.start, { zone: venue.timezone }).weekday % 7;
+
+    const [rules, overrides] = await Promise.all([
+      this.hours.rulesForResources(tenantId, [resource.id]),
+      this.hours.overridesForRange(tenantId, resource.venueId, date, date),
+    ]);
+    const opening = openingFor(date, dayOfWeek, resource.id, rules, overrides);
+
+    if (opening.closed) {
+      throw new OutsideOpeningHoursError(
+        opening.reason
+          ? `That court is closed on ${date} (${opening.reason}).`
+          : `That court is closed on ${date}.`,
+      );
+    }
+    if (!isWithinOpening(interval, venue.timezone, date, opening.windows)) {
+      const hours = opening.windows
+        .map((w) => `${w.opensAt.slice(0, 5)}–${w.closesAt.slice(0, 5)}`)
+        .join(', ');
+      throw new OutsideOpeningHoursError(
+        `That time is outside the court's opening hours (${hours}).`,
+      );
+    }
   }
 
   private async loadResource(tenantId: string, resourceId: string) {
