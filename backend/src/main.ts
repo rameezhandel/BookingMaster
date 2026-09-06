@@ -5,6 +5,8 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/errors';
+import { LoggingInterceptor } from './common/logging.interceptor';
+import { requestIdMiddleware } from './common/request-id.middleware';
 import { isTrue } from './config/env.validation';
 
 async function bootstrap() {
@@ -12,6 +14,8 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   app.setGlobalPrefix('api', { exclude: ['health', 'health/ready'] });
+  // Before everything else, so even a rejected request can be traced.
+  app.use(requestIdMiddleware);
   app.use(helmet());
 
   // Rate limiting is only meaningful if we can see the caller's real IP. Behind
@@ -23,6 +27,7 @@ async function bootstrap() {
   }
 
   app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

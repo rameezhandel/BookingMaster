@@ -2,6 +2,8 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { and, desc, eq } from 'drizzle-orm';
 import { DB, type Db } from '../db/database.module';
 import { payments, reservations } from '../db/schema';
+import { AuditService } from '../audit/audit.service';
+import { formatPaise } from '../common/money';
 import { paidTotals, toPaise } from '../common/paid-totals';
 import { ReservationsService } from '../reservations/reservations.service';
 import type { AuthUser } from '../common/current-user.decorator';
@@ -12,6 +14,7 @@ export class PaymentsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly reservations: ReservationsService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(tenantId: string, reservationId: string) {
@@ -43,6 +46,15 @@ export class PaymentsService {
         createdBy: user.id,
       })
       .returning();
+
+    await this.audit.record({
+      action: dto.direction === 'refund' ? 'payment.refunded' : 'payment.recorded',
+      entityType: 'payment',
+      entityId: payment.id,
+      summary: `${dto.direction === 'refund' ? 'Refunded' : 'Took'} ${formatPaise(dto.amountPaise)} by ${dto.method.replace('_', ' ')}`,
+      data: { reservationId, amountPaise: dto.amountPaise, method: dto.method },
+    });
+
     return payment;
   }
 
@@ -57,6 +69,16 @@ export class PaymentsService {
     await this.db
       .delete(payments)
       .where(and(eq(payments.tenantId, tenantId), eq(payments.id, paymentId)));
+
+    // Deleting a payment moves money on paper, so it is recorded loudly.
+    await this.audit.record({
+      action: 'payment.deleted',
+      entityType: 'payment',
+      entityId: paymentId,
+      summary: `Deleted a ${formatPaise(Number(payment.amountPaise))} ${payment.direction === 'refund' ? 'refund' : 'payment'}`,
+      data: { reservationId: payment.reservationId, method: payment.method },
+    });
+
     return { deleted: true };
   }
 

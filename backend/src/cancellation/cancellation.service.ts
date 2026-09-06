@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import { DB, type Db } from '../db/database.module';
 import { cancellationTiers } from '../db/schema';
+import { AuditService } from '../audit/audit.service';
 import { VenuesService } from '../venues/venues.service';
 import type { CancellationTierDto } from './dto';
 import type { CancellationTier } from './resolve';
@@ -11,6 +12,7 @@ export class CancellationService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly venues: VenuesService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(tenantId: string, venueId: string) {
@@ -54,6 +56,17 @@ export class CancellationService {
       await tx
         .delete(cancellationTiers)
         .where(and(eq(cancellationTiers.tenantId, tenantId), eq(cancellationTiers.venueId, venueId)));
+
+      await this.audit.record({
+        action: 'cancellation-policy.changed',
+        entityType: 'venue',
+        entityId: venueId,
+        summary:
+          tiers.length === 0
+            ? 'Removed the cancellation policy'
+            : `Set cancellation policy: ${ordered.map((t) => `${t.minHoursBefore}h→${t.refundPct}%`).join(', ')}`,
+        data: { tiers: ordered },
+      });
 
       if (tiers.length === 0) return [];
 

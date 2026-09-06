@@ -85,15 +85,25 @@ Required in production:
 | `JWT_SECRET` | `openssl rand -hex 32`. The app **refuses to start** if this is missing, short, or still the example value. |
 | `TRUST_PROXY` | Set `true` only behind a proxy or PaaS router. Off by default: trusting `X-Forwarded-For` without a proxy in front lets any client forge its own IP and walk around the rate limiter. |
 
+**The database role must not be a superuser and must not have `BYPASSRLS`.**
+Either one silently disables tenant isolation. The app checks its own role at
+startup and refuses to boot in production if it can bypass. Managed Postgres
+usually hands you a database owner rather than a superuser, which is what you
+want; where a provider gives a superuser by default, create a plain role for the
+application and let it own the tables.
+
 Hardening in place: `helmet`, a global per-IP request ceiling with a much
 tighter budget on `/api/auth/login` and `/api/auth/register`, boot-time
 environment validation, graceful shutdown so the connection pool drains on
 `SIGTERM`, and a non-root container user.
 
+Also in place: request ids (echoed as `x-request-id` and quoted in error
+responses, so a user reporting a failure can be matched to the exact request),
+structured request logging in production, a statement timeout so a runaway query
+cannot pin a connection, and keyset pagination on the lists that grow.
+
 **Not yet done, and worth knowing before this holds anyone's real data:**
-row-level security over `tenant_id` (the column is there and every query is
-scoped, but there is no database-level backstop for a forgotten `WHERE`), audit
-logging, and backups.
+backups and restore drills, and a second pair of eyes on the auth flow.
 
 ## The decisions worth knowing
 
@@ -230,15 +240,47 @@ customer what they get back after the booking is already cancelled is the wrong
 order. A ladder that pays out more for cancelling later is rejected, because that
 mistake is invisible until a customer finds it.
 
-### Multi-tenancy from the first migration
+### Tenant isolation is enforced by the database
 
-Every tenant-owned row carries `tenant_id`, and services take it as an explicit
-argument so a missing scope is a compile error rather than a silent cross-tenant
-read. There is exactly one customer today; adding this column to a live schema
-later is genuinely miserable, and it costs nothing now.
+Every tenant-owned row carries `tenant_id` and every service takes it as an
+explicit argument. Row-level security is the backstop for the one query that
+eventually forgets, because in a multi-tenant booking system that mistake leaks
+another venue's customers and revenue.
 
-Postgres row-level security is the intended next layer — a safety net for the one
-forgotten `WHERE tenant_id`, and there will be one.
+Three things make it real rather than decorative:
+
+- **`FORCE ROW LEVEL SECURITY`, not just `ENABLE`.** The application connects as
+  the role that owns these tables, and a table owner is exempt from its own
+  policies unless the table is forced. Without this the policies would look
+  right and do nothing.
+- **Fail closed.** With no tenant context set, `current_setting` returns NULL and
+  the policy denies. A request that somehow skips the tenant interceptor sees
+  zero rows rather than everyone's.
+- **A boot-time check.** A superuser, or a role with `BYPASSRLS`, ignores every
+  policy silently. The app verifies its own role at startup and **refuses to
+  start in production** if it can bypass. A service that will not boot is a much
+  smaller problem than one that boots and leaks.
+
+Each authenticated request runs in one transaction with `app.tenant_id` set,
+carried through the request by `AsyncLocalStorage` so services keep taking a
+plain injected `db`. That also means a handler failing partway leaves nothing
+behind — no booking without its customer, no cancellation without its refund.
+The cost is one pooled connection per in-flight request, which is the right
+trade for an admin console.
+
+Migrations, the seed script and the nightly job cross tenants by nature. They
+opt out with an explicit `app.bypass_rls`, which is a deliberate act rather than
+the accident of a missing setting — and the nightly job goes further, adopting
+each tenant in turn so its work stays subject to the same policies.
+
+### Every change is recorded
+
+`audit_event` is append-only: row-level security permits INSERT and SELECT, and
+nothing else, so the trail cannot be rewritten from the application even if it is
+compromised. Entries are written on the request's own transaction, so the log
+commits with the change it describes — no entry for a booking that rolled back,
+and no silent change without an entry. An audit write that fails logs and moves
+on; it must not turn a completed booking into a 500 for the owner at the desk.
 
 ### Timestamps
 
@@ -265,6 +307,7 @@ backend/
     cancellation/    tiered refund policy and the refund resolver
     payments/        the ledger
     reports/         billed, collected, outstanding
+    audit/           append-only record of who did what
   test/              unit tests plus the concurrency proof
 frontend/
   src/

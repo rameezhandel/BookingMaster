@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { DB, type Db, type DbExecutor } from '../db/database.module';
 import { customers, reservations, resources } from '../db/schema';
+import { decodeCursor, toPage } from '../common/cursor';
 import { rethrowAsHttp } from '../common/errors';
 import { normalisePhone, type CreateCustomerDto, type CustomerRefDto, type UpdateCustomerDto } from './dto';
 
@@ -9,20 +10,28 @@ import { normalisePhone, type CreateCustomerDto, type CustomerRefDto, type Updat
 export class CustomersService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  list(tenantId: string, query?: string, limit = 50) {
-    const where = query?.trim()
-      ? and(
-          eq(customers.tenantId, tenantId),
-          or(ilike(customers.name, `%${query.trim()}%`), ilike(customers.phone, `%${query.trim()}%`)),
-        )
-      : eq(customers.tenantId, tenantId);
+  async list(tenantId: string, query?: string, limit = 50, cursor?: string) {
+    const filters = [eq(customers.tenantId, tenantId)];
+    if (query?.trim()) {
+      const needle = `%${query.trim()}%`;
+      filters.push(or(ilike(customers.name, needle), ilike(customers.phone, needle))!);
+    }
+    if (cursor) {
+      const { sort, id } = decodeCursor(cursor);
+      filters.push(
+        sql`(${customers.updatedAt}, ${customers.id}) < (${sort}::timestamptz, ${id}::uuid)`,
+      );
+    }
 
-    return this.db
+    const size = Math.min(limit, 200);
+    const rows = await this.db
       .select()
       .from(customers)
-      .where(where)
-      .orderBy(desc(customers.updatedAt))
-      .limit(Math.min(limit, 200));
+      .where(and(...filters))
+      .orderBy(desc(customers.updatedAt), desc(customers.id))
+      .limit(size + 1);
+
+    return toPage(rows, size, (c) => ({ sort: c.updatedAt, id: c.id }));
   }
 
   async get(tenantId: string, customerId: string) {

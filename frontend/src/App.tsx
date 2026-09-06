@@ -5,6 +5,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { BookingsPage } from './pages/BookingsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { SeriesPage } from './pages/SeriesPage';
+import { ActivityPage } from './pages/ActivityPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 
@@ -50,6 +51,9 @@ export default function App() {
           <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
             Reports
           </NavLink>
+          <NavLink to="/activity" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Activity
+          </NavLink>
           <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
             Settings
           </NavLink>
@@ -69,6 +73,7 @@ export default function App() {
           <Route path="/series" element={<SeriesPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/calendar" replace />} />
         </Routes>

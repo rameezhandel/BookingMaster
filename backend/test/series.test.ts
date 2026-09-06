@@ -13,6 +13,12 @@ const PG_CHECK_VIOLATION = '23514';
 const PG_UNIQUE_VIOLATION = '23505';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
+// See concurrency.test.ts: fixtures are built in raw SQL, so row-level
+// security is opted out of explicitly. Isolation is covered in rls.test.ts.
+pool.on('connect', (client) => {
+  void client.query(`SET app.bypass_rls = 'on'`);
+});
+
 let tenantId: string;
 let venueId: string;
 let courtId: string;

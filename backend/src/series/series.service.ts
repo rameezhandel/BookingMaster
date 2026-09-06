@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException } fr
 import { and, asc, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { DB, type Db } from '../db/database.module';
+import { runAsTenant } from '../db/run-as-tenant';
 import {
   bookingSeries,
   customers,
@@ -14,6 +15,7 @@ import { PG_EXCLUSION_VIOLATION, PG_UNIQUE_VIOLATION, rethrowAsHttp } from '../c
 import { timeToMinutes, type Interval } from '../common/time';
 import { HoursService } from '../availability/hours.service';
 import { isWithinOpening, openingFor } from '../availability/resolve';
+import { AuditService } from '../audit/audit.service';
 import { CustomersService } from '../customers/customers.service';
 import { PricingService } from '../pricing/pricing.service';
 import type { AuthUser } from '../common/current-user.decorator';
@@ -45,6 +47,7 @@ export class SeriesService {
     private readonly customersService: CustomersService,
     private readonly pricing: PricingService,
     private readonly hours: HoursService,
+    private readonly audit: AuditService,
   ) {}
 
   // ----------------------------------------------------------- commands --
@@ -89,6 +92,15 @@ export class SeriesService {
       dto.weeks ?? DEFAULT_HORIZON_WEEKS,
     );
     const result = await this.materialise(user.tenantId, series.id, through);
+
+    await this.audit.record({
+      action: 'series.created',
+      entityType: 'booking_series',
+      entityId: series.id,
+      summary: `Weekly booking on ${resource.name}: ${result.created.length} created, ${result.skipped.length} skipped`,
+      data: { dayOfWeek: dto.dayOfWeek, startsAt: dto.startsAt, skipped: result.skipped },
+    });
+
     return { series: await this.get(user.tenantId, series.id), ...result };
   }
 
@@ -147,6 +159,14 @@ export class SeriesService {
       .update(bookingSeries)
       .set({ status: 'ended', endsOn })
       .where(and(eq(bookingSeries.tenantId, tenantId), eq(bookingSeries.id, seriesId)));
+
+    await this.audit.record({
+      action: 'series.ended',
+      entityType: 'booking_series',
+      entityId: seriesId,
+      summary: `Ended a weekly booking, cancelling ${cancelled} upcoming`,
+      data: { cancelledFrom: from, cancelledCount: cancelled },
+    });
 
     return { ended: true, cancelledFrom: from, cancelledCount: cancelled };
   }
@@ -262,22 +282,37 @@ export class SeriesService {
     return { created, skipped, materialisedThrough: through };
   }
 
-  /** Rolls every active series forward. Used by the nightly job. */
+  /**
+   * Rolls every active series forward. Used by the nightly job.
+   *
+   * The listing runs under an explicit bypass because it deliberately spans
+   * tenants; each series is then extended *as* its own tenant, so the work
+   * itself stays subject to the same row-level policies as a request.
+   */
   async materialiseAllActive(weeks = DEFAULT_HORIZON_WEEKS) {
-    const active = await this.db
-      .select({ id: bookingSeries.id, tenantId: bookingSeries.tenantId, venueId: bookingSeries.venueId })
-      .from(bookingSeries)
-      .where(eq(bookingSeries.status, 'active'));
+    const active = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      return tx
+        .select({
+          id: bookingSeries.id,
+          tenantId: bookingSeries.tenantId,
+          venueId: bookingSeries.venueId,
+        })
+        .from(bookingSeries)
+        .where(eq(bookingSeries.status, 'active'));
+    });
 
     let created = 0;
     let skipped = 0;
     for (const series of active) {
       try {
-        const venue = await this.loadVenue(series.venueId);
-        const through = horizonFrom(DateTime.now().setZone(venue.timezone).toISODate()!, weeks);
-        const result = await this.materialise(series.tenantId, series.id, through);
-        created += result.created.length;
-        skipped += result.skipped.filter((s) => s.reason !== 'already-booked').length;
+        await runAsTenant(this.db, series.tenantId, async () => {
+          const venue = await this.loadVenue(series.venueId);
+          const through = horizonFrom(DateTime.now().setZone(venue.timezone).toISODate()!, weeks);
+          const result = await this.materialise(series.tenantId, series.id, through);
+          created += result.created.length;
+          skipped += result.skipped.filter((s) => s.reason !== 'already-booked').length;
+        });
       } catch (err) {
         // One bad series must not stop the rest from rolling forward.
         this.logger.error(

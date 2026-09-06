@@ -17,6 +17,14 @@ loadEnv();
 const PG_EXCLUSION_VIOLATION = '23P01';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 25 });
 
+// These tests are about the database constraints, not tenant isolation, and
+// they build their fixtures with raw SQL rather than through the API. They opt
+// out of row-level security on every connection, explicitly. Isolation has its
+// own test in rls.test.ts.
+pool.on('connect', (client) => {
+  void client.query(`SET app.bypass_rls = 'on'`);
+});
+
 let tenantId: string;
 let venueId: string;
 let courtId: string;

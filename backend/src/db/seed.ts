@@ -33,10 +33,16 @@ async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is not set.');
 
-  const pool = new Pool({ connectionString });
+  // One connection, because the RLS bypass below is a session setting and
+  // would not follow the seed onto a second pooled connection.
+  const pool = new Pool({ connectionString, max: 1 });
   const db = drizzle(pool, { schema });
 
   try {
+    // Seeding creates tenants, so it cannot be scoped to one. Row-level
+    // security is opted out of explicitly rather than by accident.
+    await pool.query(`SET app.bypass_rls = 'on'`);
+
     const [existing] = await db.select().from(users).where(eq(users.email, DEMO_EMAIL)).limit(1);
     if (existing) {
       await db.delete(tenants).where(eq(tenants.id, existing.tenantId));

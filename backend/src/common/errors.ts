@@ -66,6 +66,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const res = host.switchToHttp().getResponse<Response>();
+    const requestId = host.switchToHttp().getRequest<{ id?: string }>()?.id;
 
     let normalised: unknown = exception;
     try {
@@ -76,19 +77,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (normalised instanceof HttpException) {
       const status = normalised.getStatus();
-      if (status >= 500) this.logger.error(normalised.message, normalised.stack);
-      res.status(status).json(normalised.getResponse());
+      if (status >= 500) this.logger.error(`[${requestId}] ${normalised.message}`, normalised.stack);
+      const body = normalised.getResponse();
+      res
+        .status(status)
+        .json(typeof body === 'object' ? { ...body, requestId } : { message: body, requestId });
       return;
     }
 
     this.logger.error(
-      normalised instanceof Error ? normalised.message : String(normalised),
+      `[${requestId}] ${normalised instanceof Error ? normalised.message : String(normalised)}`,
       normalised instanceof Error ? normalised.stack : undefined,
     );
+    // The detail stays in the logs; the caller gets the id to quote.
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: 500,
       error: 'InternalServerError',
       message: 'Something went wrong.',
+      requestId,
     });
   }
 }

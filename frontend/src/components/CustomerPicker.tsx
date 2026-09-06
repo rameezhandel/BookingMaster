@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { get } from '../lib/api';
-import type { Customer } from '../lib/types';
+import type { Customer, Page } from '../lib/types';
 
 interface Props {
   name: string;
@@ -19,11 +19,12 @@ export function CustomerPicker({ name, phone, onChange }: Props) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const { data: matches = [] } = useQuery({
+  const { data } = useQuery({
     queryKey: ['customers', query],
-    queryFn: () => get<Customer[]>(`/customers?q=${encodeURIComponent(query)}`),
+    queryFn: () => get<Page<Customer>>(`/customers?q=${encodeURIComponent(query)}&limit=6`),
     enabled: query.trim().length >= 2,
   });
+  const matches = data?.items ?? [];
 
   function search(value: string) {
     setQuery(value);

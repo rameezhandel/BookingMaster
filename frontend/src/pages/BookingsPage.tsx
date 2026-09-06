@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import { useState } from 'react';
 import { BookingDetailModal } from '../components/BookingDetailModal';
 import { get } from '../lib/api';
 import { rangeIn, rupees, shiftDate, todayIn } from '../lib/format';
-import type { BookingRow, Venue } from '../lib/types';
+import type { BookingRow, Page, Venue } from '../lib/types';
 
 const STATUSES = ['', 'confirmed', 'completed', 'cancelled', 'no_show', 'blocked'];
 
@@ -23,17 +23,25 @@ export function BookingsPage() {
   const params = new URLSearchParams({
     from: DateTime.fromISO(from, { zone: tz }).startOf('day').toISO()!,
     to: DateTime.fromISO(to, { zone: tz }).endOf('day').toISO()!,
-    limit: '200',
+    limit: '50',
   });
   if (venue) params.set('venueId', venue.id);
   if (status) params.set('status', status);
   if (q.trim()) params.set('q', q.trim());
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['bookings', params.toString()],
-    queryFn: () => get<BookingRow[]>(`/reservations?${params}`),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => {
+      const page = new URLSearchParams(params);
+      if (pageParam) page.set('cursor', pageParam);
+      return get<Page<BookingRow>>(`/reservations?${page}`);
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: !!venue,
   });
+
+  const rows = data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
     <>
@@ -60,7 +68,7 @@ export function BookingsPage() {
       <div className="card">
         {isLoading ? (
           <div className="empty">Loading…</div>
-        ) : !data?.length ? (
+        ) : !rows.length ? (
           <div className="empty">
             <h3>Nothing in this range</h3>
             <p>Try widening the dates or clearing the filters.</p>
@@ -78,7 +86,7 @@ export function BookingsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {rows.map((r) => (
                 <tr key={r.id} onClick={() => setDetailId(r.id)} style={{ cursor: 'pointer' }}>
                   <td>
                     <div>{DateTime.fromISO(r.during.start, { zone: tz }).toFormat('ccc d LLL')}</div>
@@ -124,6 +132,14 @@ export function BookingsPage() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {hasNextPage && (
+          <div style={{ padding: 12, textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+            <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+              {isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </button>
+          </div>
         )}
       </div>
 

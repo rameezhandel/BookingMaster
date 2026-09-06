@@ -4,6 +4,7 @@ import { DB, type Db, type DbExecutor } from '../db/database.module';
 import { resourceHourRules, resources, venueDateOverrides } from '../db/schema';
 import { timeToMinutes } from '../common/time';
 import { rethrowAsHttp } from '../common/errors';
+import { AuditService } from '../audit/audit.service';
 import { VenuesService } from '../venues/venues.service';
 import type { CreateOverrideDto, HourWindowDto, ListOverridesDto } from './dto';
 import type { DateOverride, HourRule } from './resolve';
@@ -13,6 +14,7 @@ export class HoursService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly venues: VenuesService,
+    private readonly audit: AuditService,
   ) {}
 
   // ------------------------------------------------------ weekly hours --
@@ -34,7 +36,7 @@ export class HoursService {
    * either gets the schedule they submitted or the one they had.
    */
   async replace(tenantId: string, resourceId: string, windows: HourWindowDto[]) {
-    await this.venues.getResource(tenantId, resourceId);
+    const resource = await this.venues.getResource(tenantId, resourceId);
     assertWindowsSane(windows);
 
     try {
@@ -47,7 +49,7 @@ export class HoursService {
 
         if (windows.length === 0) return [];
 
-        return tx
+        const created = await tx
           .insert(resourceHourRules)
           .values(
             windows.map((w) => ({
@@ -59,6 +61,16 @@ export class HoursService {
             })),
           )
           .returning();
+
+        await this.audit.record({
+          action: 'hours.changed',
+          entityType: 'resource',
+          entityId: resourceId,
+          summary: `Changed opening hours for ${resource.name}`,
+          data: { windows },
+        });
+
+        return created;
       });
     } catch (err) {
       rethrowAsHttp(err);
@@ -133,6 +145,17 @@ export class HoursService {
           reason: dto.reason,
         })
         .returning();
+
+      await this.audit.record({
+        action: 'closure.created',
+        entityType: 'venue',
+        entityId: venueId,
+        summary: isClosed
+          ? `Closed ${dto.resourceId ? 'a court' : 'the venue'} on ${dto.onDate.slice(0, 10)}${dto.reason ? ` (${dto.reason})` : ''}`
+          : `Special hours ${dto.opensAt}–${dto.closesAt} on ${dto.onDate.slice(0, 10)}`,
+        data: { onDate: dto.onDate.slice(0, 10), resourceId: dto.resourceId ?? null, isClosed },
+      });
+
       return created;
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -155,6 +178,15 @@ export class HoursService {
     await this.db
       .delete(venueDateOverrides)
       .where(and(eq(venueDateOverrides.tenantId, tenantId), eq(venueDateOverrides.id, overrideId)));
+
+    await this.audit.record({
+      action: 'closure.removed',
+      entityType: 'venue',
+      entityId: existing.venueId,
+      summary: `Removed the ${existing.onDate} closure`,
+      data: { onDate: existing.onDate },
+    });
+
     return { deleted: true };
   }
 

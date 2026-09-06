@@ -205,3 +205,21 @@ export interface RefundQuote {
   tier: CancellationTier | null;
   cappedByPaid: boolean;
 }
+
+/** Keyset-paginated list response. */
+export interface Page<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export interface AuditEvent {
+  id: number;
+  actorEmail: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  summary: string;
+  data: Record<string, unknown> | null;
+  requestId: string | null;
+  createdAt: string;
+}

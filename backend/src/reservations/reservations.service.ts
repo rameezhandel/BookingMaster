@@ -8,6 +8,7 @@ import {
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { DB, type Db } from '../db/database.module';
 import { customers, payments, reservations, resources, venues, type ReservationStatus } from '../db/schema';
+import { decodeCursor, toPage, type Page } from '../common/cursor';
 import { OutsideOpeningHoursError, rethrowAsHttp } from '../common/errors';
 import { paidTotals, toPaise } from '../common/paid-totals';
 import { DateTime } from 'luxon';
@@ -15,6 +16,7 @@ import { durationMinutes, toISODate, type Interval } from '../common/time';
 import { formatPaise } from '../common/money';
 import { HoursService } from '../availability/hours.service';
 import { isWithinOpening, openingFor } from '../availability/resolve';
+import { AuditService } from '../audit/audit.service';
 import { CancellationService } from '../cancellation/cancellation.service';
 import { hoursUntil, quoteRefund, type RefundQuote } from '../cancellation/resolve';
 import { CustomersService } from '../customers/customers.service';
@@ -46,6 +48,7 @@ export class ReservationsService {
     private readonly pricing: PricingService,
     private readonly hours: HoursService,
     private readonly cancellation: CancellationService,
+    private readonly audit: AuditService,
   ) {}
 
   // ------------------------------------------------------------ writing --
@@ -96,6 +99,15 @@ export class ReservationsService {
             createdBy: user.id,
           })
           .returning();
+
+        await this.audit.record({
+          action: 'booking.created',
+          entityType: 'reservation',
+          entityId: created.id,
+          summary: `Booked ${resource.name} for ${formatPaise(amountPaise)}`,
+          data: { start: dto.start, end: dto.end, amountPaise, outsideHours: !!dto.allowOutsideHours },
+        });
+
         return created;
       });
     } catch (err) {
@@ -122,6 +134,15 @@ export class ReservationsService {
           createdBy: user.id,
         })
         .returning();
+
+      await this.audit.record({
+        action: 'block.created',
+        entityType: 'reservation',
+        entityId: created.id,
+        summary: `Blocked ${resource.name}: ${dto.reason}`,
+        data: { start: dto.start, end: dto.end },
+      });
+
       return created;
     } catch (err) {
       rethrowAsHttp(err);
@@ -153,6 +174,17 @@ export class ReservationsService {
         })
         .where(and(eq(reservations.tenantId, tenantId), eq(reservations.id, id)))
         .returning();
+
+      if (dto.status && dto.status !== existing.status) {
+        await this.audit.record({
+          action: `booking.${dto.status}`,
+          entityType: 'reservation',
+          entityId: id,
+          summary: `Marked booking ${dto.status.replace('_', ' ')}`,
+          data: { from: existing.status, to: dto.status },
+        });
+      }
+
       return updated;
     } catch (err) {
       // Marking a no-show back to completed can collide with a slot that was
@@ -224,6 +256,24 @@ export class ReservationsService {
           createdBy: userId ?? null,
         });
       }
+
+      await this.audit.record({
+        action: 'booking.cancelled',
+        entityType: 'reservation',
+        entityId: id,
+        summary:
+          refundPaise > 0
+            ? `Cancelled booking, refunded ${formatPaise(refundPaise)}`
+            : 'Cancelled booking, no refund',
+        data: {
+          refundPaise,
+          policyPct: quote.refundPct,
+          policyRefundPaise: quote.refundPaise,
+          overridden: dto.refundPaise !== undefined && dto.refundPaise !== quote.refundPaise,
+          recordedInLedger: !!dto.recordRefund && refundPaise > 0,
+          reason: dto.reason ?? null,
+        },
+      });
     });
 
     return this.get(tenantId, id);
@@ -254,7 +304,7 @@ export class ReservationsService {
 
   // ------------------------------------------------------------ reading --
 
-  async list(tenantId: string, query: ListReservationsDto) {
+  async list(tenantId: string, query: ListReservationsDto): Promise<Page<ReturnType<typeof withMoney>>> {
     const filters: SQL[] = [eq(reservations.tenantId, tenantId)];
 
     if (query.venueId) filters.push(eq(reservations.venueId, query.venueId));
@@ -275,6 +325,17 @@ export class ReservationsService {
       filters.push(sql`(${customers.name} ILIKE ${needle} OR ${customers.phone} ILIKE ${needle})`);
     }
 
+    // Sorted newest-first by start time, with id breaking ties so the ordering
+    // is total — without that, two bookings starting at the same minute could
+    // swap places between pages and one would be missed.
+    if (query.cursor) {
+      const cursor = decodeCursor(query.cursor);
+      filters.push(
+        sql`(lower(${reservations.during}), ${reservations.id}) < (${cursor.sort}::timestamptz, ${cursor.id}::uuid)`,
+      );
+    }
+
+    const limit = Math.min(query.limit ?? 100, 200);
     const paid = paidTotals(this.db);
     const rows = await this.db
       .select(this.selection(paid))
@@ -284,9 +345,10 @@ export class ReservationsService {
       .leftJoin(customers, eq(customers.id, reservations.customerId))
       .leftJoin(paid, eq(paid.reservationId, reservations.id))
       .where(and(...filters))
-      .orderBy(desc(sql`lower(${reservations.during})`))
-      .limit(Math.min(query.limit ?? 100, 500));
-    return rows.map(withMoney);
+      .orderBy(desc(sql`lower(${reservations.during})`), desc(reservations.id))
+      .limit(limit + 1);
+
+    return toPage(rows.map(withMoney), limit, (r) => ({ sort: r.during.start, id: r.id }));
   }
 
   async get(tenantId: string, id: string) {

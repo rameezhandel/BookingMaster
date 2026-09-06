@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
+  Max,
   IsInt,
   IsISO8601,
   IsOptional,
@@ -58,5 +59,7 @@ export class ListReservationsDto {
   @IsOptional() @IsISO8601() to?: string;
   @IsOptional() @IsIn(['held', 'confirmed', 'completed', 'cancelled', 'no_show', 'blocked']) status?: string;
   @IsOptional() @IsString() @MaxLength(120) q?: string;
-  @IsOptional() @IsInt() @Min(1) @Type(() => Number) limit?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(200) @Type(() => Number) limit?: number;
+  /** Opaque keyset cursor from a previous page. */
+  @IsOptional() @IsString() @MaxLength(200) cursor?: string;
 }

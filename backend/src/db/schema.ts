@@ -1,10 +1,12 @@
 import {
   bigint,
+  bigserial,
   boolean,
   customType,
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   smallint,
   text,
@@ -269,3 +271,26 @@ export const payments = pgTable(
 
 /** Statuses that occupy a court, matching the partial exclusion constraint. */
 export const OCCUPYING_STATUSES: ReservationStatus[] = ['held', 'confirmed', 'completed', 'blocked'];
+
+/**
+ * Append-only record of who did what. Row-level security permits INSERT and
+ * SELECT only, so the trail cannot be rewritten from the application.
+ */
+export const auditEvents = pgTable(
+  'audit_event',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    actorUserId: uuid('actor_user_id'),
+    actorEmail: text('actor_email'),
+    /** Dotted and past tense: booking.cancelled, payment.recorded. */
+    action: text('action').notNull(),
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id'),
+    summary: text('summary').notNull(),
+    data: jsonb('data'),
+    requestId: text('request_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantIdx: index('audit_event_tenant_idx').on(t.tenantId, t.createdAt) }),
+);

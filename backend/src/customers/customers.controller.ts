@@ -10,8 +10,13 @@ export class CustomersController {
   constructor(private readonly customers: CustomersService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
-    return this.customers.list(user.tenantId, q);
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.customers.list(user.tenantId, q, limit ? Number(limit) : 50, cursor);
   }
 
   @Post()

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Modal } from '../components/Modal';
 import { get } from '../lib/api';
 import { rupees } from '../lib/format';
-import type { Customer, Venue } from '../lib/types';
+import type { Customer, Page, Venue } from '../lib/types';
 
 interface CustomerDetail extends Customer {
   history: {
@@ -26,8 +26,9 @@ export function CustomersPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers-page', q],
-    queryFn: () => get<Customer[]>(`/customers?q=${encodeURIComponent(q)}`),
+    queryFn: () => get<Page<Customer>>(`/customers?q=${encodeURIComponent(q)}`),
   });
+  const rows = data?.items ?? [];
 
   const { data: detail } = useQuery({
     queryKey: ['customer', openId],
@@ -51,7 +52,7 @@ export function CustomersPage() {
       <div className="card">
         {isLoading ? (
           <div className="empty">Loading…</div>
-        ) : !data?.length ? (
+        ) : !rows.length ? (
           <div className="empty">
             <h3>No customers yet</h3>
             <p>They are created automatically the first time you book someone in.</p>
@@ -66,7 +67,7 @@ export function CustomersPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((c) => (
+              {rows.map((c) => (
                 <tr key={c.id} onClick={() => setOpenId(c.id)} style={{ cursor: 'pointer' }}>
                   <td>
                     <strong>{c.name}</strong>

@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Module, type DynamicModule } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { CalendarModule } from './calendar/calendar.module';
@@ -13,6 +14,7 @@ import { CancellationModule } from './cancellation/cancellation.module';
 import { validateEnv } from './config/env.validation';
 import { CustomersModule } from './customers/customers.module';
 import { DatabaseModule } from './db/database.module';
+import { TenantContextInterceptor } from './db/tenant.interceptor';
 import { HealthModule } from './health/health.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
@@ -54,6 +56,7 @@ function webApp(): DynamicModule[] {
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    AuditModule,
     HealthModule,
     AuthModule,
     VenuesModule,
@@ -68,6 +71,11 @@ function webApp(): DynamicModule[] {
     ReportsModule,
     ...webApp(),
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Runs after the auth guard, so req.user is populated by the time the
+    // tenant is read off it.
+    { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
+  ],
 })
 export class AppModule {}
