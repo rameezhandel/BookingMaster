@@ -1,0 +1,329 @@
+/* BookingMaster — the venue owner's console.
+   Dense by design: this is a tool someone uses fifty times a day, not a page
+   they read once. */
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --border: #dfe3e8;
+  --border-strong: #c6ccd4;
+  --text: #14181d;
+  --text-dim: #5c6672;
+  --text-faint: #8b95a1;
+
+  --accent: #1f6feb;
+  --accent-text: #ffffff;
+  --accent-soft: #e7f0fe;
+
+  --free: #ffffff;
+  --free-border: #dfe3e8;
+  --booked: #e4f4ea;
+  --booked-border: #8fcfa8;
+  --booked-text: #14532d;
+  --blocked: #f2f0f4;
+  --blocked-border: #c3bcc9;
+  --held: #fff4de;
+  --held-border: #e5b95f;
+  --past: #f4f5f7;
+
+  --danger: #c02b2b;
+  --danger-soft: #fdeaea;
+  --ok: #1b7f4b;
+  --warn: #9a6407;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e1116;
+    --surface: #161b22;
+    --surface-2: #1d232c;
+    --border: #2b323c;
+    --border-strong: #3d4652;
+    --text: #e8ebef;
+    --text-dim: #9aa4b0;
+    --text-faint: #6e7885;
+
+    --accent: #4d8ef7;
+    --accent-text: #06121f;
+    --accent-soft: #16283f;
+
+    --free: #161b22;
+    --free-border: #2b323c;
+    --booked: #12301f;
+    --booked-border: #2f6b45;
+    --booked-text: #9de5b8;
+    --blocked: #23202a;
+    --blocked-border: #443c50;
+    --held: #302507;
+    --held-border: #7a5c17;
+    --past: #12161c;
+
+    --danger: #f07171;
+    --danger-soft: #2a1618;
+    --ok: #5cc98d;
+    --warn: #d8a33e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+h1 { font-size: 20px; }
+h2 { font-size: 16px; }
+h3 { font-size: 14px; }
+a { color: var(--accent); }
+
+/* ------------------------------------------------------------- shell -- */
+
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 20;
+  flex-wrap: wrap;
+}
+.brand { font-weight: 700; letter-spacing: -0.02em; font-size: 15px; white-space: nowrap; }
+.brand span { color: var(--accent); }
+
+.nav { display: flex; gap: 2px; }
+.nav a {
+  padding: 6px 11px; border-radius: var(--radius-sm);
+  color: var(--text-dim); text-decoration: none; font-weight: 550; font-size: 13px;
+}
+.nav a:hover { background: var(--surface-2); color: var(--text); }
+.nav a.active { background: var(--accent-soft); color: var(--accent); }
+
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.who { color: var(--text-dim); font-size: 13px; }
+
+.page { padding: 20px; max-width: 1500px; width: 100%; margin: 0 auto; flex: 1; }
+
+/* ----------------------------------------------------------- controls -- */
+
+button, .btn {
+  font: inherit; font-weight: 550; font-size: 13px;
+  padding: 7px 13px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  cursor: pointer; white-space: nowrap;
+}
+button:hover:not(:disabled), .btn:hover { background: var(--surface-2); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button.danger { color: var(--danger); border-color: var(--border-strong); }
+button.danger:hover:not(:disabled) { background: var(--danger-soft); }
+button.ghost { border-color: transparent; background: transparent; color: var(--text-dim); }
+button.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+button.sm { padding: 4px 9px; font-size: 12px; }
+
+input, select, textarea {
+  font: inherit; font-size: 13px;
+  padding: 7px 9px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent);
+}
+label { display: block; font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 4px; }
+.field { margin-bottom: 12px; }
+.field-row { display: flex; gap: 10px; }
+.field-row > * { flex: 1; }
+
+/* -------------------------------------------------------------- cards -- */
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.card-head {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.card-body { padding: 16px; }
+
+/* ------------------------------------------------------ calendar head -- */
+
+.cal-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.date-nav { display: flex; align-items: center; gap: 6px; }
+.date-title { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.date-sub { color: var(--text-faint); font-size: 12px; }
+
+.weekstrip { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.weekstrip button {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 10px; min-width: 62px;
+}
+.weekstrip .dow { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.weekstrip .dnum { font-size: 15px; font-weight: 650; }
+.weekstrip .occ { font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.weekstrip button.active { border-color: var(--accent); background: var(--accent-soft); }
+.weekstrip button.active .dow, .weekstrip button.active .occ { color: var(--accent); }
+
+.stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 9px 14px; min-width: 118px;
+}
+.stat .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat .v { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* ------------------------------------------------------- calendar grid -- */
+
+.grid-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+table.grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+
+table.grid th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 9px 10px; text-align: left; font-size: 12px; font-weight: 650;
+}
+table.grid th .sport { display: block; font-weight: 500; color: var(--text-faint); font-size: 11px; text-transform: capitalize; }
+table.grid th.time-col, table.grid td.time-col {
+  width: 66px; min-width: 66px;
+  position: sticky; left: 0; z-index: 6;
+  background: var(--surface); border-right: 1px solid var(--border);
+}
+table.grid td.time-col {
+  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+  text-align: right; padding: 0 10px; vertical-align: middle;
+}
+table.grid td { border-bottom: 1px solid var(--border); padding: 3px; vertical-align: top; }
+table.grid tr:last-child td { border-bottom: none; }
+
+.slot {
+  width: 100%; text-align: left; min-height: 42px;
+  border-radius: var(--radius-sm); border: 1px solid var(--free-border);
+  background: var(--free); padding: 5px 8px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 1px; justify-content: center;
+}
+.slot .who { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.slot .price { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.slot.free:hover { border-color: var(--accent); background: var(--accent-soft); }
+.slot.free .add { font-size: 12px; color: var(--text-faint); }
+.slot.free:hover .add { color: var(--accent); }
+
+.slot.booked { background: var(--booked); border-color: var(--booked-border); }
+.slot.booked .who { color: var(--booked-text); }
+.slot.held { background: var(--held); border-color: var(--held-border); }
+.slot.blocked { background: var(--blocked); border-color: var(--blocked-border); color: var(--text-dim); }
+.slot.past { background: var(--past); border-style: dashed; }
+.slot.past .add, .slot.past .price { color: var(--text-faint); opacity: 0.7; }
+.slot.spacer { visibility: hidden; cursor: default; }
+
+.due-flag { color: var(--warn); font-weight: 650; }
+.paid-flag { color: var(--ok); }
+
+/* -------------------------------------------------------------- modal -- */
+
+.backdrop {
+  position: fixed; inset: 0; background: rgba(10, 14, 20, 0.5);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 6vh 16px; z-index: 50; overflow-y: auto;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 460px;
+}
+.modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.modal-head h2 { flex: 1; }
+.modal-body { padding: 18px; }
+.modal-foot {
+  padding: 12px 18px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end; align-items: center;
+}
+.modal-foot .spacer { flex: 1; }
+
+.slot-banner {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.slot-banner .court { font-weight: 650; }
+.slot-banner .when { color: var(--text-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------- tables -- */
+
+table.list { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.list th {
+  text-align: left; padding: 9px 12px; font-size: 11px; font-weight: 650;
+  color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.list td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.list tr:last-child td { border-bottom: none; }
+table.list tbody tr:hover { background: var(--surface-2); }
+table.list .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 650; text-transform: capitalize;
+  background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border);
+}
+.pill.confirmed { background: var(--booked); border-color: var(--booked-border); color: var(--booked-text); }
+.pill.completed { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.pill.cancelled { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+.pill.no_show { background: var(--held); border-color: var(--held-border); color: var(--warn); }
+.pill.blocked { background: var(--blocked); border-color: var(--blocked-border); }
+
+/* -------------------------------------------------------------- misc -- */
+
+.msg { padding: 9px 12px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 14px; }
+.msg.error { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
+.msg.info { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); }
+
+.empty { padding: 44px 20px; text-align: center; color: var(--text-faint); }
+.empty h3 { color: var(--text-dim); margin-bottom: 6px; }
+
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row.wrap { flex-wrap: wrap; }
+.spacer { flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.hint { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+
+.center-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.center-page .card { width: 100%; max-width: 400px; }
+
+.suggestions {
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  margin-top: 4px; max-height: 172px; overflow-y: auto; background: var(--surface);
+}
+.suggestions button {
+  display: block; width: 100%; text-align: left; border: none; border-radius: 0;
+  border-bottom: 1px solid var(--border); background: transparent; padding: 7px 10px;
+}
+.suggestions button:last-child { border-bottom: none; }
+
+@media (max-width: 640px) {
+  .page { padding: 12px; }
+  .topbar { padding: 10px 12px; gap: 10px; }
+  .stat { min-width: 96px; flex: 1; }
+}
