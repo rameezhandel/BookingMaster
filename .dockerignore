@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.gitignore
+*.log
+.env
+**/.env
+*.tsbuildinfo
+**/*.tsbuildinfo
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md

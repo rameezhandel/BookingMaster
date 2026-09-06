@@ -1,0 +1,29 @@
+# Render blueprint. Create from the dashboard with "New > Blueprint" pointed at
+# this repo, or `render blueprint launch`.
+services:
+  - type: web
+    name: bookingmaster
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health/ready
+    # Migrations run once per deploy, before the new instances take traffic —
+    # never on instance boot, where replicas would race the same DDL.
+    preDeployCommand: node backend/dist/db/migrate.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bookingmaster-db
+          property: connectionString
+
+databases:
+  - name: bookingmaster-db
+    databaseName: bookingmaster
+    user: bookingmaster
+    plan: basic-256mb

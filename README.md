@@ -59,6 +59,42 @@ database where that extension is already available.
 npm test            # 23 tests; the integration ones need DATABASE_URL
 ```
 
+## Deploying
+
+The API serves the built web bundle, so the whole thing is **one container and
+one origin** — no CORS in the request path and no second service to keep in sync.
+
+```bash
+docker compose --profile app up --build      # the full stack, locally
+```
+
+Blueprints are included for [Render](render.yaml) and [Fly](fly.toml). Both run
+migrations as a **release step**, not on instance boot: with more than one
+replica, boot-time migration means every replica races the same DDL. The
+`MIGRATE_ON_BOOT` env var exists for single-instance and local use only.
+
+Point health checks at `/health/ready`, which verifies the database is actually
+reachable. `/health` is liveness only and deliberately does not touch the
+database, so a database blip restarts nothing.
+
+Required in production:
+
+| Variable | Notes |
+| --- | --- |
+| `DATABASE_URL` | Postgres 16+. The database must allow `CREATE EXTENSION btree_gist`. |
+| `JWT_SECRET` | `openssl rand -hex 32`. The app **refuses to start** if this is missing, short, or still the example value. |
+| `TRUST_PROXY` | Set `true` only behind a proxy or PaaS router. Off by default: trusting `X-Forwarded-For` without a proxy in front lets any client forge its own IP and walk around the rate limiter. |
+
+Hardening in place: `helmet`, a global per-IP request ceiling with a much
+tighter budget on `/api/auth/login` and `/api/auth/register`, boot-time
+environment validation, graceful shutdown so the connection pool drains on
+`SIGTERM`, and a non-root container user.
+
+**Not yet done, and worth knowing before this holds anyone's real data:**
+row-level security over `tenant_id` (the column is there and every query is
+scoped, but there is no database-level backstop for a forgotten `WHERE`), audit
+logging, and backups.
+
 ## The decisions worth knowing
 
 ### Double-booking is prevented by the database, not by application code
@@ -168,6 +204,9 @@ frontend/
     lib/             api client, auth context, formatting
     components/      calendar cells, modals, customer picker
     pages/           calendar, bookings, customers, reports, settings
+Dockerfile           multi-stage; the web bundle is baked in and served by the API
+render.yaml          Render blueprint, migrations as a pre-deploy step
+fly.toml             Fly config, migrations as a release_command
 ```
 
 ## Roadmap

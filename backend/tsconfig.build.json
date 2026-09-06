@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Pinned explicitly. Without it, TypeScript infers the common root from
+    // whatever is included — so adding files under test/ silently moves the
+    // build output to dist/src/main.js and the container fails to start.
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test", "**/*.test.ts"]
+}
