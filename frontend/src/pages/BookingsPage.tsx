@@ -106,7 +106,19 @@ export function BookingsPage() {
                   </td>
                   <td className="num mono">{r.kind === 'block' ? '—' : rupees(r.amountPaise)}</td>
                   <td className={`num mono ${r.duePaise > 0 ? 'due-flag' : ''}`}>
-                    {r.kind === 'block' ? '—' : r.duePaise > 0 ? rupees(r.duePaise) : '✓'}
+                    {r.kind === 'block' ? (
+                      '—'
+                    ) : r.status === 'cancelled' ? (
+                      r.cancellationRefundPaise ? (
+                        <span className="faint">−{rupees(r.cancellationRefundPaise)}</span>
+                      ) : (
+                        <span className="faint">no refund</span>
+                      )
+                    ) : r.duePaise > 0 ? (
+                      rupees(r.duePaise)
+                    ) : (
+                      '✓'
+                    )}
                   </td>
                 </tr>
               ))}

@@ -10,6 +10,7 @@ import { Pool } from 'pg';
 import { loadEnv } from './env';
 import * as schema from './schema';
 import {
+  cancellationTiers,
   customers,
   payments,
   priceRules,
@@ -216,6 +217,14 @@ async function main() {
         });
       }
     }
+
+    // The policy most venues describe out loud: full refund a day out, half
+    // inside that, nothing once it is close.
+    await db.insert(cancellationTiers).values([
+      { tenantId: tenant.id, venueId: venue.id, minHoursBefore: 24, refundPct: 100 },
+      { tenantId: tenant.id, venueId: venue.id, minHoursBefore: 12, refundPct: 50 },
+      { tenantId: tenant.id, venueId: venue.id, minHoursBefore: 0, refundPct: 0 },
+    ]);
 
     // A holiday closure and a court that opens late that day, so the override
     // layering is visible in the seeded data.

@@ -12,8 +12,11 @@ import { OutsideOpeningHoursError, rethrowAsHttp } from '../common/errors';
 import { paidTotals, toPaise } from '../common/paid-totals';
 import { DateTime } from 'luxon';
 import { durationMinutes, toISODate, type Interval } from '../common/time';
+import { formatPaise } from '../common/money';
 import { HoursService } from '../availability/hours.service';
 import { isWithinOpening, openingFor } from '../availability/resolve';
+import { CancellationService } from '../cancellation/cancellation.service';
+import { hoursUntil, quoteRefund, type RefundQuote } from '../cancellation/resolve';
 import { CustomersService } from '../customers/customers.service';
 import { PricingService } from '../pricing/pricing.service';
 import type { AuthUser } from '../common/current-user.decorator';
@@ -23,6 +26,7 @@ import type {
   ListReservationsDto,
   UpdateReservationDto,
 } from './dto';
+import type { CancelReservationDto } from '../cancellation/dto';
 
 const MAX_RESERVATION_MINUTES = 24 * 60;
 
@@ -41,6 +45,7 @@ export class ReservationsService {
     private readonly customersService: CustomersService,
     private readonly pricing: PricingService,
     private readonly hours: HoursService,
+    private readonly cancellation: CancellationService,
   ) {}
 
   // ------------------------------------------------------------ writing --
@@ -61,14 +66,19 @@ export class ReservationsService {
     const amountPaise =
       dto.amountPaise ?? (await this.autoPrice(user.tenantId, dto.resourceId, interval));
 
+    // Validating an existing customer is a plain read, so do it before opening
+    // the transaction rather than taking a second pooled connection while one
+    // is already held.
+    if (dto.customerId && !dto.customer) {
+      await this.customersService.get(user.tenantId, dto.customerId);
+    }
+
     try {
       return await this.db.transaction(async (tx) => {
         let customerId = dto.customerId ?? null;
         if (dto.customer) {
           const customer = await this.customersService.findOrCreate(tx, user.tenantId, dto.customer);
           customerId = customer.id;
-        } else if (customerId) {
-          await this.customersService.get(user.tenantId, customerId);
         }
 
         const [created] = await tx
@@ -151,16 +161,83 @@ export class ReservationsService {
     }
   }
 
-  async cancel(tenantId: string, id: string) {
-    const existing = await this.getRaw(tenantId, id);
-    if (existing.status === 'cancelled') return existing;
+  /**
+   * What the venue's policy says this cancellation is worth back, right now.
+   *
+   * Exposed separately so the UI can show the number *before* the owner commits
+   * to it — telling a customer the refund after cancelling is the wrong order.
+   */
+  async quoteCancellation(tenantId: string, id: string, at = new Date()): Promise<RefundQuote> {
+    const reservation = await this.getRaw(tenantId, id);
+    const tiers = await this.cancellation.tiersFor(tenantId, reservation.venueId);
+    const paidPaise = await this.paidFor(tenantId, id);
+    return quoteRefund(
+      tiers,
+      hoursUntil(reservation.during.start, at),
+      Number(reservation.amountPaise),
+      paidPaise,
+    );
+  }
 
-    const [updated] = await this.db
-      .update(reservations)
-      .set({ status: 'cancelled', cancelledAt: new Date() })
-      .where(and(eq(reservations.tenantId, tenantId), eq(reservations.id, id)))
-      .returning();
-    return updated;
+  async cancel(tenantId: string, id: string, dto: CancelReservationDto = {}, userId?: string) {
+    const existing = await this.getRaw(tenantId, id);
+    if (existing.status === 'cancelled') return this.get(tenantId, id);
+
+    const quote = await this.quoteCancellation(tenantId, id);
+    const paidPaise = await this.paidFor(tenantId, id);
+
+    // An override still cannot hand back money that was never collected.
+    const refundPaise = dto.refundPaise ?? quote.refundPaise;
+    if (refundPaise > paidPaise) {
+      throw new BadRequestException(
+        `Only ${formatPaise(paidPaise)} was collected, so ${formatPaise(refundPaise)} cannot be refunded.`,
+      );
+    }
+
+    // The read has to happen *after* the commit. Calling this.get() inside the
+    // transaction callback would run on a different pooled connection and see
+    // the pre-cancellation row, so the caller was told the booking was still
+    // confirmed and the refund had not been recorded.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(reservations)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          // The decision is stored, not recomputed later: replaying today's
+          // policy against an old booking would give a different answer, and
+          // the number that matters is the one the customer was told.
+          cancellationRefundPct: quote.refundPct,
+          cancellationRefundPaise: refundPaise,
+          cancellationReason: dto.reason ?? null,
+        })
+        .where(and(eq(reservations.tenantId, tenantId), eq(reservations.id, id)));
+
+      if (dto.recordRefund && refundPaise > 0) {
+        await tx.insert(payments).values({
+          tenantId,
+          reservationId: id,
+          amountPaise: refundPaise,
+          direction: 'refund',
+          method: dto.refundMethod ?? 'cash',
+          note: dto.reason ? `Cancellation: ${dto.reason}` : 'Cancellation refund',
+          createdBy: userId ?? null,
+        });
+      }
+    });
+
+    return this.get(tenantId, id);
+  }
+
+  private async paidFor(tenantId: string, reservationId: string): Promise<number> {
+    const paid = paidTotals(this.db);
+    const [row] = await this.db
+      .select({ paidPaise: paid.paidPaise })
+      .from(reservations)
+      .leftJoin(paid, eq(paid.reservationId, reservations.id))
+      .where(and(eq(reservations.tenantId, tenantId), eq(reservations.id, reservationId)))
+      .limit(1);
+    return toPaise(row?.paidPaise);
   }
 
   /** Blocks carry no financial record, so removing one leaves nothing behind. */
@@ -249,6 +326,9 @@ export class ReservationsService {
       amountPaise: reservations.amountPaise,
       notes: reservations.notes,
       blockReason: reservations.blockReason,
+      cancellationRefundPct: reservations.cancellationRefundPct,
+      cancellationRefundPaise: reservations.cancellationRefundPaise,
+      cancellationReason: reservations.cancellationReason,
       seriesId: reservations.seriesId,
       occurrenceDate: reservations.occurrenceDate,
       createdAt: reservations.createdAt,
@@ -330,11 +410,23 @@ export class ReservationsService {
   }
 }
 
-/** Money leaves the database as bigint strings; normalise it once, at the edge. */
-function withMoney<T extends { amountPaise: unknown; paidPaise: unknown }>(row: T) {
+/**
+ * Money leaves the database as bigint strings; normalise it once, at the edge.
+ *
+ * A cancelled booking is never "due": the customer owes nothing for a court
+ * they did not get. Reporting amount-minus-paid there would have shown ₹500
+ * outstanding on a booking that was cancelled and refunded in full.
+ */
+function withMoney<T extends { amountPaise: unknown; paidPaise: unknown; status?: unknown }>(row: T) {
   const amountPaise = toPaise(row.amountPaise);
   const paidPaise = toPaise(row.paidPaise);
-  return { ...row, amountPaise, paidPaise, duePaise: amountPaise - paidPaise };
+  const cancelled = row.status === 'cancelled';
+  return {
+    ...row,
+    amountPaise,
+    paidPaise,
+    duePaise: cancelled ? 0 : amountPaise - paidPaise,
+  };
 }
 
 function parseInterval(start: string, end: string): Interval {

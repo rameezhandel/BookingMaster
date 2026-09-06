@@ -121,6 +121,9 @@ export interface BookingRow {
   timezone: string;
   customerName: string | null;
   customerPhone: string | null;
+  cancellationRefundPct: number | null;
+  cancellationRefundPaise: number | null;
+  cancellationReason: string | null;
 }
 
 export interface Payment {
@@ -187,4 +190,18 @@ export interface MaterialiseResult {
 
 export interface CreateSeriesResult extends MaterialiseResult {
   series: BookingSeries;
+}
+
+export interface CancellationTier {
+  minHoursBefore: number;
+  refundPct: number;
+}
+
+export interface RefundQuote {
+  configured: boolean;
+  refundPct: number | null;
+  refundPaise: number;
+  hoursBefore: number;
+  tier: CancellationTier | null;
+  cappedByPaid: boolean;
 }

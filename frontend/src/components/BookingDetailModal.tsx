@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ApiError, del, get, patch, post } from '../lib/api';
 import { paiseFromRupeeInput, rangeIn, rupees } from '../lib/format';
 import type { Payment } from '../lib/types';
+import { CancelBookingPanel } from './CancelBookingPanel';
 import { Modal } from './Modal';
 
 interface Props {
@@ -40,6 +41,7 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
   const qc = useQueryClient();
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<string>('cash');
+  const [cancelling, setCancelling] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['reservation', reservationId],
@@ -71,14 +73,6 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
     onSuccess: refresh,
   });
 
-  const cancel = useMutation({
-    mutationFn: () => post(`/reservations/${reservationId}/cancel`),
-    onSuccess: () => {
-      refresh();
-      onClose();
-    },
-  });
-
   const removeBlock = useMutation({
     mutationFn: () => del(`/reservations/${reservationId}`),
     onSuccess: () => {
@@ -97,7 +91,7 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
 
   const isBlock = data.kind === 'block';
   const active = !['cancelled'].includes(data.status);
-  const error = [addPayment.error, setStatus.error, cancel.error].find((e) => e instanceof ApiError) as
+  const error = [addPayment.error, setStatus.error].find((e) => e instanceof ApiError) as
     | ApiError
     | undefined;
 
@@ -112,8 +106,9 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
               Remove block
             </button>
           ) : (
-            active && (
-              <button className="danger" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
+            active &&
+            !cancelling && (
+              <button className="danger" onClick={() => setCancelling(true)}>
                 Cancel booking
               </button>
             )
@@ -133,7 +128,17 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
 
       {error && <div className="msg error">{error.message}</div>}
 
-      {isBlock ? (
+      {cancelling && !isBlock ? (
+        <CancelBookingPanel
+          reservationId={reservationId}
+          paidPaise={data.paidPaise}
+          onCancelled={() => {
+            refresh();
+            onClose();
+          }}
+          onDismiss={() => setCancelling(false)}
+        />
+      ) : isBlock ? (
         <p className="muted" style={{ marginTop: 0 }}>
           {data.blockReason ?? 'No reason recorded.'}
         </p>

@@ -9,6 +9,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { CancellationModule } from './cancellation/cancellation.module';
 import { validateEnv } from './config/env.validation';
 import { CustomersModule } from './customers/customers.module';
 import { DatabaseModule } from './db/database.module';
@@ -59,6 +60,7 @@ function webApp(): DynamicModule[] {
     AvailabilityModule,
     PricingModule,
     CustomersModule,
+    CancellationModule,
     ReservationsModule,
     SeriesModule,
     PaymentsModule,

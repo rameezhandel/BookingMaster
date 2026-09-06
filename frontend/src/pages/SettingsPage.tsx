@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { CancellationPolicyCard } from '../components/CancellationPolicyCard';
 import { ClosuresCard } from '../components/ClosuresCard';
 import { HoursModal } from '../components/HoursModal';
 import { Modal } from '../components/Modal';
@@ -24,6 +25,7 @@ export function SettingsPage() {
       <VenueCard venue={venue} />
       <CourtsCard venue={venue} />
       <ClosuresCard venue={venue} courts={courts ?? []} />
+      <CancellationPolicyCard venue={venue} />
     </div>
   );
 }

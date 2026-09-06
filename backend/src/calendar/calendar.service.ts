@@ -246,7 +246,9 @@ function summarise(r: {
     end: r.end.toISOString(),
     amountPaise: Number(r.amountPaise),
     paidPaise: Number(r.paidPaise),
-    duePaise: Number(r.amountPaise) - Number(r.paidPaise),
+    // Cancelled bookings never appear here (they do not occupy a slot), but keep
+    // the rule in one place so the two views cannot drift.
+    duePaise: r.status === 'cancelled' ? 0 : Number(r.amountPaise) - Number(r.paidPaise),
     notes: r.notes,
     blockReason: r.blockReason,
     seriesId: r.seriesId,

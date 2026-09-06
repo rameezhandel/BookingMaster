@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { CancelReservationDto } from '../cancellation/dto';
 import { CreateBlockDto, CreateReservationDto, ListReservationsDto, UpdateReservationDto } from './dto';
 import { ReservationsService } from './reservations.service';
 
@@ -49,9 +50,19 @@ export class ReservationsController {
     return this.reservations.update(user.tenantId, id, dto);
   }
 
+  /** What the policy would refund if cancelled right now. */
+  @Get(':id/cancellation-quote')
+  quote(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.reservations.quoteCancellation(user.tenantId, id);
+  }
+
   @Post(':id/cancel')
-  cancel(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.reservations.cancel(user.tenantId, id);
+  cancel(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelReservationDto,
+  ) {
+    return this.reservations.cancel(user.tenantId, id, dto, user.id);
   }
 
   @Delete(':id')

@@ -206,6 +206,30 @@ lock, so several replicas do not duplicate the work.
 Ending a series cancels from today forward by default. Bookings already played,
 or already paid for, are history and stay on the books.
 
+### Cancellation refunds are policy, not arithmetic
+
+A venue's refund ladder is configuration: "cancel 24 hours out for a full refund,
+12 hours for half, later for nothing". Resolution picks the most generous
+threshold the cancellation still clears.
+
+Three things the engine is careful about:
+
+- **A percentage of the bill, capped at what was collected.** A booking billed
+  ₹900 with ₹200 paid cannot refund ₹900 however generous the policy is, and the
+  cap is reported so the UI can explain the smaller number rather than just show
+  it.
+- **No policy is not a policy of zero.** A venue with no tiers gets told exactly
+  that, and the owner enters a refund by hand, rather than the system quietly
+  refunding nothing.
+- **The decision is stored on the booking, not recomputed.** Replaying today's
+  policy against a cancellation from six months ago would give a different
+  answer, and the number that matters is the one the customer was told.
+
+The refund is quoted *before* the owner commits, and stays editable: telling a
+customer what they get back after the booking is already cancelled is the wrong
+order. A ladder that pays out more for cancelling later is rejected, because that
+mistake is invisible until a customer finds it.
+
 ### Multi-tenancy from the first migration
 
 Every tenant-owned row carries `tenant_id`, and services take it as an explicit
@@ -238,6 +262,7 @@ backend/
     calendar/        day and week availability
     reservations/    quick-book, blocks, cancellations, status
     series/          recurring bookings and the nightly extension job
+    cancellation/    tiered refund policy and the refund resolver
     payments/        the ledger
     reports/         billed, collected, outstanding
   test/              unit tests plus the concurrency proof
@@ -264,8 +289,7 @@ out makes you a payment facilitator, with float, reconciliation and chargebacks
 attached. Be software first.
 
 **Phase 2.** WhatsApp confirmations (template approval takes days — start early),
-a cancellation-policy engine as tenant config, GST invoicing with a gapless
-per-tenant sequence.
+GST invoicing with a gapless per-tenant sequence.
 
 **Later — halls.** Wedding and function halls sell a *date*, not an hour, and the
 booking is a CRM pipeline — enquiry, site visit, quote, advance — before it is

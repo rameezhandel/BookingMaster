@@ -195,10 +195,30 @@ export const reservations = pgTable(
     occurrenceDate: date('occurrence_date'),
     createdBy: uuid('created_by'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    /** What the policy decided at the moment of cancelling, kept for the record. */
+    cancellationRefundPct: smallint('cancellation_refund_pct'),
+    cancellationRefundPaise: bigint('cancellation_refund_paise', { mode: 'number' }),
+    cancellationReason: text('cancellation_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ tenantCreatedIdx: index('reservation_tenant_created_idx').on(t.tenantId, t.createdAt) }),
+);
+
+export const cancellationTiers = pgTable(
+  'cancellation_tier',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    /** "Cancel at least this many hours before the start..." */
+    minHoursBefore: integer('min_hours_before').notNull(),
+    /** "...and get this percentage back." */
+    refundPct: smallint('refund_pct').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ venueIdx: index('cancellation_tier_venue_idx').on(t.venueId, t.minHoursBefore) }),
 );
 
 export const bookingSeries = pgTable(
