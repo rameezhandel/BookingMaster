@@ -5,12 +5,13 @@ import { ClosuresCard } from '../components/ClosuresCard';
 import { HoursModal } from '../components/HoursModal';
 import { Modal } from '../components/Modal';
 import { ApiError, del, get, patch, post } from '../lib/api';
+import { useVenue } from '../lib/venue';
 import { DAY_NAMES, describeDays, paiseFromRupeeInput, rupees, shortTime } from '../lib/format';
 import type { Court, PriceRule, Venue } from '../lib/types';
 
 export function SettingsPage() {
-  const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
-  const venue = venues?.[0];
+  const { venue, venues } = useVenue();
+  const [addingVenue, setAddingVenue] = useState(false);
 
   const { data: courts } = useQuery({
     queryKey: ['courts', venue?.id],
@@ -22,11 +23,100 @@ export function SettingsPage() {
 
   return (
     <div className="stack">
-      <VenueCard venue={venue} />
+      <div className="cal-head" style={{ marginBottom: 0 }}>
+        <h1>{venue.name}</h1>
+        <span className="faint" style={{ fontSize: 13 }}>
+          {venues.length > 1
+            ? `${venues.length} venues — switch with the picker in the top bar`
+            : 'Settings apply to this venue'}
+        </span>
+        <span className="spacer" />
+        <button onClick={() => setAddingVenue(true)}>Add another venue</button>
+      </div>
+
+      <VenueCard key={venue.id} venue={venue} />
       <CourtsCard venue={venue} />
       <ClosuresCard venue={venue} courts={courts ?? []} />
-      <CancellationPolicyCard venue={venue} />
+      <CancellationPolicyCard key={`policy-${venue.id}`} venue={venue} />
+
+      {addingVenue && <AddVenueModal onClose={() => setAddingVenue(false)} />}
     </div>
+  );
+}
+
+function AddVenueModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { select } = useVenue();
+  const [form, setForm] = useState({ name: '', timezone: 'Asia/Kolkata', address: '', phone: '' });
+
+  const create = useMutation({
+    mutationFn: () => post<Venue>('/venues', form),
+    onSuccess: async (venue) => {
+      await qc.invalidateQueries({ queryKey: ['venues'] });
+      // Switch straight to it: the next thing an owner does is add its courts.
+      select(venue.id);
+      onClose();
+    },
+  });
+
+  return (
+    <Modal
+      title="Add a venue"
+      onClose={onClose}
+      footer={
+        <>
+          <span className="spacer" />
+          <button onClick={onClose}>Cancel</button>
+          <button
+            className="primary"
+            onClick={() => create.mutate()}
+            disabled={!form.name.trim() || create.isPending}
+          >
+            {create.isPending ? 'Creating…' : 'Add venue'}
+          </button>
+        </>
+      }
+    >
+      {create.error instanceof ApiError && <div className="msg error">{create.error.message}</div>}
+      <div className="field">
+        <label htmlFor="nv-name">Name</label>
+        <input
+          id="nv-name"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder="Smash Arena, Koramangala"
+        />
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="nv-tz">Timezone</label>
+          <input
+            id="nv-tz"
+            value={form.timezone}
+            onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="nv-phone">Phone</label>
+          <input
+            id="nv-phone"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="nv-addr">Address</label>
+        <input
+          id="nv-addr"
+          value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
+        />
+      </div>
+      <div className="hint">
+        Courts, hours and pricing are set per venue. You will be switched to the new one.
+      </div>
+    </Modal>
   );
 }
 

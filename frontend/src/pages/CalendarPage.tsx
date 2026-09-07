@@ -7,39 +7,15 @@ import { FirstRun } from '../components/FirstRun';
 import { QuickBookModal } from '../components/QuickBookModal';
 import { get } from '../lib/api';
 import { dayLabel, fullDate, rupees, shiftDate, todayIn } from '../lib/format';
-import type { CalendarDay, Slot, Venue, WeekDay } from '../lib/types';
-
-const VENUE_KEY = 'bm.venue';
-
-function rememberVenue(id: string) {
-  try {
-    localStorage.setItem(VENUE_KEY, id);
-  } catch {
-    /* ignore */
-  }
-}
-
-function recalledVenue(): string | null {
-  try {
-    return localStorage.getItem(VENUE_KEY);
-  } catch {
-    return null;
-  }
-}
+import type { CalendarDay, Slot, WeekDay } from '../lib/types';
+import { useVenue } from '../lib/venue';
 
 export function CalendarPage() {
-  const [venueId, setVenueId] = useState<string | null>(recalledVenue());
+  const { venue: activeVenue, isLoading: venuesLoading } = useVenue();
   const [date, setDate] = useState(todayIn('Asia/Kolkata'));
   const [booking, setBooking] = useState<{ courtId: string; slot: Slot } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [blocking, setBlocking] = useState(false);
-
-  const { data: venues, isLoading: venuesLoading } = useQuery({
-    queryKey: ['venues'],
-    queryFn: () => get<Venue[]>('/venues'),
-  });
-
-  const activeVenue = venues?.find((v) => v.id === venueId) ?? venues?.[0];
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['calendar', activeVenue?.id, date],
@@ -73,7 +49,7 @@ export function CalendarPage() {
   }, [data]);
 
   if (venuesLoading) return <span className="faint">Loading…</span>;
-  if (!venues?.length) return <FirstRun />;
+  if (!activeVenue) return <FirstRun />;
   if (activeVenue && !isLoading && data && data.courts.length === 0) {
     return (
       <div className="empty card">
@@ -111,22 +87,6 @@ export function CalendarPage() {
 
         <span className="spacer" />
 
-        {venues.length > 1 && (
-          <select
-            value={activeVenue?.id}
-            onChange={(e) => {
-              setVenueId(e.target.value);
-              rememberVenue(e.target.value);
-            }}
-            style={{ width: 'auto' }}
-          >
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        )}
         <button onClick={() => setBlocking(true)}>Block time</button>
       </div>
 

@@ -1,10 +1,11 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import { useState } from 'react';
 import { BookingDetailModal } from '../components/BookingDetailModal';
 import { get } from '../lib/api';
+import { useVenue } from '../lib/venue';
 import { rangeIn, rupees, shiftDate, todayIn } from '../lib/format';
-import type { BookingRow, Page, Venue } from '../lib/types';
+import type { BookingRow, Page } from '../lib/types';
 
 const STATUSES = ['', 'confirmed', 'completed', 'cancelled', 'no_show', 'blocked'];
 
@@ -16,9 +17,7 @@ export function BookingsPage() {
   const [q, setQ] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
-  const venue = venues?.[0];
-  const tz = venue?.timezone ?? 'Asia/Kolkata';
+  const { venue, timezone: tz } = useVenue();
 
   const params = new URLSearchParams({
     from: DateTime.fromISO(from, { zone: tz }).startOf('day').toISO()!,

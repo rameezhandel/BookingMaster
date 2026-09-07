@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
+import { VenueProvider, VenueSwitcher } from './lib/venue';
 import { LoginPage } from './pages/LoginPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { BookingsPage } from './pages/BookingsPage';
@@ -30,6 +31,7 @@ export default function App() {
   }
 
   return (
+    <VenueProvider>
     <div className="shell">
       <header className="topbar">
         <div className="brand">
@@ -59,6 +61,7 @@ export default function App() {
           </NavLink>
         </nav>
         <div className="topbar-right">
+          <VenueSwitcher />
           <span className="who">{me.tenant.name}</span>
           <button className="ghost sm" onClick={logout}>
             Sign out
@@ -79,5 +82,6 @@ export default function App() {
         </Routes>
       </main>
     </div>
+    </VenueProvider>
   );
 }

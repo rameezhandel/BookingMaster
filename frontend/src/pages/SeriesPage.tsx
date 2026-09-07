@@ -4,20 +4,21 @@ import { useState } from 'react';
 import { Modal } from '../components/Modal';
 import { SeriesResult } from '../components/SeriesResult';
 import { ApiError, get, post } from '../lib/api';
+import { useVenue } from '../lib/venue';
 import { DAY_PLURALS, rupees, shortTime } from '../lib/format';
-import type { BookingSeries, MaterialiseResult, SeriesDetail, Venue } from '../lib/types';
+import type { BookingSeries, MaterialiseResult, SeriesDetail } from '../lib/types';
 
 export function SeriesPage() {
   const qc = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
   const [extendResult, setExtendResult] = useState<MaterialiseResult | null>(null);
 
-  const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
-  const tz = venues?.[0]?.timezone ?? 'Asia/Kolkata';
+  const { venue, timezone: tz } = useVenue();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['series'],
-    queryFn: () => get<BookingSeries[]>('/series'),
+    queryKey: ['series', venue?.id],
+    queryFn: () => get<BookingSeries[]>(`/series?venueId=${venue!.id}`),
+    enabled: !!venue,
   });
 
   const extend = useMutation<MaterialiseResult, Error, string>({

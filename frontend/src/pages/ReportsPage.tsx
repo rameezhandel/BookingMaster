@@ -1,16 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { get } from '../lib/api';
+import { useVenue } from '../lib/venue';
 import { rupees, shiftDate, todayIn } from '../lib/format';
-import type { ReportSummary, Venue } from '../lib/types';
+import type { ReportSummary } from '../lib/types';
 
 export function ReportsPage() {
   const today = todayIn('Asia/Kolkata');
   const [from, setFrom] = useState(shiftDate(today, -29));
   const [to, setTo] = useState(today);
 
-  const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
-  const venue = venues?.[0];
+  const { venue } = useVenue();
 
   const { data, isLoading } = useQuery({
     queryKey: ['report', venue?.id, from, to],

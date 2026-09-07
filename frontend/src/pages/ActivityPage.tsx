@@ -1,8 +1,8 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import { get } from '../lib/api';
-import type { AuditEvent, Venue } from '../lib/types';
-import { useQuery } from '@tanstack/react-query';
+import { useVenue } from '../lib/venue';
+import type { AuditEvent } from '../lib/types';
 
 const TONE: Record<string, string> = {
   'booking.created': 'confirmed',
@@ -23,8 +23,7 @@ const TONE: Record<string, string> = {
  * disappears, which is most venues within a month.
  */
 export function ActivityPage() {
-  const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
-  const tz = venues?.[0]?.timezone ?? 'Asia/Kolkata';
+  const { timezone: tz } = useVenue();
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['audit'],

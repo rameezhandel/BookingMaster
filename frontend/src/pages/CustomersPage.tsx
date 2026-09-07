@@ -3,8 +3,9 @@ import { DateTime } from 'luxon';
 import { useState } from 'react';
 import { Modal } from '../components/Modal';
 import { get } from '../lib/api';
+import { useVenue } from '../lib/venue';
 import { rupees } from '../lib/format';
-import type { Customer, Page, Venue } from '../lib/types';
+import type { Customer, Page } from '../lib/types';
 
 interface CustomerDetail extends Customer {
   history: {
@@ -21,8 +22,7 @@ export function CustomersPage() {
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const { data: venues } = useQuery({ queryKey: ['venues'], queryFn: () => get<Venue[]>('/venues') });
-  const tz = venues?.[0]?.timezone ?? 'Asia/Kolkata';
+  const { timezone: tz } = useVenue();
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers-page', q],
