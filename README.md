@@ -105,8 +105,16 @@ startup and refuses to boot in production if it can bypass.
 ## Tests
 
 ```bash
-npm test        # 149 tests; the integration ones need DATABASE_URL
+npm test        # 154 unit and database tests; needs DATABASE_URL
+npm run e2e     # 7 end-to-end tests, against the built app in a real browser
+npm run typecheck
 ```
+
+Every pull request runs all three against a real Postgres — see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). CI connects as an
+unprivileged role on purpose: a superuser silently ignores row-level security,
+so the isolation tests would pass while proving nothing, and there is a test
+that fails if that is ever got wrong.
 
 The ones worth knowing about:
 
@@ -122,6 +130,17 @@ The ones worth knowing about:
   a deliberate race; and the guards that stop an account being left with no
   active owner.
 - **Notifications** — deduplication, opt-out, claim-once delivery and backoff.
+
+And end-to-end, in a browser against the built app:
+
+- **Two tabs racing one slot** — the loser is told, in words, and only one
+  booking exists afterwards.
+- **A player paying** — the booking confirms on the *webhook*, without the
+  browser ever being told the payment succeeded.
+- **Staff permissions** — what is on screen, and that nothing on it fails when
+  pressed.
+- **The console on a phone** — no page slides sideways, every tab is reachable,
+  and a booking can be taken.
 
 ## Deploying
 

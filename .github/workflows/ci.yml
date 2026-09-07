@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The role the application connects as. Deliberately not the superuser the
+      # postgres image hands you: a superuser silently ignores every row-level
+      # security policy, so the isolation tests would pass while proving
+      # nothing. There is a test that fails if this is got wrong.
+      DATABASE_URL: postgres://bookingmaster:bookingmaster@127.0.0.1:5432/bookingmaster
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+      NODE_ENV: test
+      E2E_PORT: "3100"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Create the unprivileged application role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE bookingmaster LOGIN PASSWORD 'bookingmaster' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
+          CREATE DATABASE bookingmaster OWNER bookingmaster;
+          SQL
+          # btree_gist is what makes the no-overlap constraint possible. Created
+          # here as the superuser, the way a managed Postgres would provide it.
+          psql -h 127.0.0.1 -U postgres -d bookingmaster -v ON_ERROR_STOP=1 \
+            -c 'CREATE EXTENSION IF NOT EXISTS btree_gist;'
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Migrate
+        run: npm run migrate
+
+      - name: Unit and database tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run e2e
+
+      - name: Keep the report when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7

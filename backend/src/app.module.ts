@@ -53,7 +53,17 @@ function webApp(): DynamicModule[] {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
+      // Anchored to the compiled files rather than to the working directory:
+      // `node backend/dist/main.js` from the repository root is a normal way to
+      // start this, and it otherwise finds no .env and refuses to boot with a
+      // message about missing configuration that is in fact right there.
+      // Real environment variables still win, which is how it runs in
+      // production and in CI.
+      envFilePath: [join(__dirname, '..', '.env')],
+    }),
     // A blunt ceiling on request volume per IP. The strict limit that actually
     // matters is on the auth routes; see AuthController.
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
