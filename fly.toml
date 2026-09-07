@@ -23,9 +23,24 @@ primary_region = "bom"
 [http_service]
   internal_port = 3000
   force_https = true
+
+  # One machine always up, and this is not a preference.
+  #
+  # Scaling to zero on an idle web service is normally free money; here it stops
+  # the clock. Six jobs need a live process: expired holds are swept every 30
+  # seconds, queued WhatsApp messages go out every 10, reminders are queued
+  # every 5 minutes, and there are nightly jobs at 3am and 4am to extend
+  # recurring bookings and purge old messages. With no machine running, none of
+  # them happen — expired holds keep blocking slots that are actually free,
+  # confirmations sit unsent, and the reminder before a 7am game never fires.
+  # Nothing reports this. It just looks like the app works erratically.
+  #
+  # Machines beyond the first still stop when idle, which is the saving worth
+  # having. Running several is safe: every job takes a Postgres advisory lock
+  # first, so only one instance does the work.
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [[http_service.checks]]
     grace_period = "15s"

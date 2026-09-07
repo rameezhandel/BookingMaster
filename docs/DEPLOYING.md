@@ -7,6 +7,54 @@ one origin** — no CORS in the request path and no second service to keep in sy
 docker compose --profile app up --build      # the full stack, locally
 ```
 
+## Choosing a host
+
+Blueprints exist for both, and the Dockerfile is the same either way, so this is
+not a decision you are stuck with — moving later costs a deploy, not a rewrite.
+
+**Render** is the better default for one person running this. Its Postgres is
+managed, with backups as part of the product rather than a thing you set up;
+this database holds bookings and payment records, and a lost one ends the
+business. Its nearest region to India is Singapore.
+
+**Fly** has a Mumbai region, which is worth tens of milliseconds to a player
+opening the booking page on mobile data. Historically its Postgres has been an
+app you run and back up yourself — check the current state, since that offering
+has been changing. Take Fly when latency becomes a real complaint, or when you
+want the control.
+
+Latency is unlikely to be why a venue does not sign up. A lost database would
+be. Start on Render.
+
+Do not use a free tier for the public booking page: the ones that sleep make a
+customer wait through a cold start on the link the venue just shared with them.
+
+## One instance must always be running
+
+This is not a web service that can scale to zero. Six jobs need a live process:
+
+| | |
+| --- | --- |
+| every 30s | sweep expired holds |
+| every 10s | send queued WhatsApp messages |
+| every 5m | queue reminders |
+| hourly | hold housekeeping |
+| 3am | extend recurring bookings |
+| 4am | purge old message records |
+
+With nothing running, none of them happen. Expired holds keep blocking slots
+that are actually free, confirmations sit unsent, and the reminder before a 7am
+game never fires — and nothing reports any of it. It reads as an app that works
+erratically.
+
+`fly.toml` therefore sets `min_machines_running = 1`. Machines beyond the first
+still stop when idle, which is the saving worth having.
+
+Running several instances is safe: every job takes a Postgres advisory lock
+before doing anything, so only one of them does the work and the rest skip.
+
+## The blueprints
+
 Blueprints are included for [Render](render.yaml) and [Fly](fly.toml). Both run
 migrations as a **release step**, not on instance boot: with more than one
 replica, boot-time migration means every replica races the same DDL. The
