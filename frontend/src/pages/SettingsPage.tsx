@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CancellationPolicyCard } from '../components/CancellationPolicyCard';
 import { MessagesCard } from '../components/MessagesCard';
 import { TeamCard } from '../components/TeamCard';
+import { TaxCard } from '../components/TaxCard';
 import { ClosuresCard } from '../components/ClosuresCard';
 import { PublishCard } from '../components/PublishCard';
 import { HoursModal } from '../components/HoursModal';
@@ -51,6 +52,7 @@ export function SettingsPage() {
       <ClosuresCard venue={venue} courts={courts ?? []} />
 
       {isOwner && <CancellationPolicyCard key={`policy-${venue.id}`} venue={venue} />}
+      {isOwner && <TaxCard key={`tax-${venue.id}`} venue={venue} />}
       <MessagesCard key={`messages-${venue.id}`} venue={venue} canEdit={isOwner} />
       {isOwner && <TeamCard />}
 

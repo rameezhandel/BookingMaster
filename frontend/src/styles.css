@@ -587,3 +587,43 @@ button.pub-slot.free:hover { border-color: var(--accent); }
 }
 table.list tr.is-off td { opacity: 0.55; }
 table.list tr.is-off strong { text-decoration: line-through; }
+
+/* ----------------------------------------------------------- invoice -- */
+
+.invoice-doc { background: var(--surface); color: var(--text); font-size: 13px; }
+.invoice-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.invoice-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.invoice-number { color: var(--text-dim); font-size: 13px; }
+.invoice-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+.invoice-parties {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+table.invoice-lines { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+table.invoice-lines th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-faint); padding: 6px 0; border-bottom: 1px solid var(--border);
+}
+table.invoice-lines td { padding: 8px 0; vertical-align: top; }
+table.invoice-lines .num, .invoice-totals .mono { text-align: right; font-variant-numeric: tabular-nums; }
+.invoice-totals { margin-left: auto; max-width: 280px; }
+.invoice-totals .row { display: flex; justify-content: space-between; gap: 24px; padding: 3px 0; }
+.invoice-totals .row.total {
+  border-top: 1px solid var(--border-strong); margin-top: 6px; padding-top: 8px; font-weight: 700;
+}
+.invoice-foot { margin-top: 20px; font-size: 11px; }
+
+@media (max-width: 700px) {
+  .invoice-parties { grid-template-columns: 1fr; }
+  .invoice-totals { max-width: none; }
+}
+
+/* The document alone, at a size that prints on A4. */
+@media print {
+  body * { visibility: hidden; }
+  .invoice-doc, .invoice-doc * { visibility: visible; }
+  .invoice-doc { position: absolute; inset: 0; padding: 24px; font-size: 12px; }
+  .backdrop { position: static; background: none; padding: 0; overflow: visible; }
+  .modal { border: none; box-shadow: none; max-height: none; }
+  .modal-head, .modal-foot { display: none !important; }
+}

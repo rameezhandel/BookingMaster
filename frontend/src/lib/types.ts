@@ -12,6 +12,43 @@ export interface Venue {
   requiresPrepayment: boolean;
   notificationsEnabled: boolean;
   reminderHoursBefore: number;
+  invoicingEnabled: boolean;
+  gstin: string | null;
+  legalName: string | null;
+  legalAddress: string | null;
+  stateCode: string | null;
+  /** Basis points: 1800 is 18%. */
+  gstRateBp: number;
+  pricesIncludeGst: boolean;
+  sacCode: string | null;
+  invoicePrefix: string | null;
+}
+
+/** A tax invoice or a credit note, as issued. */
+export interface Invoice {
+  id: string;
+  kind: 'invoice' | 'credit_note';
+  reversesId: string | null;
+  number: string;
+  financialYear: string;
+  seq: number;
+  issuedAt: string;
+  supplierName: string;
+  supplierGstin: string | null;
+  supplierAddress: string | null;
+  supplierStateCode: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerGstin: string | null;
+  placeOfSupply: string | null;
+  sacCode: string | null;
+  description: string;
+  gstRateBp: number;
+  taxablePaise: number;
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+  totalPaise: number;
 }
 
 /** One message in the venue's outbox, as the owner sees it. */

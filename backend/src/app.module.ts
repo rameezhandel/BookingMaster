@@ -8,6 +8,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { StaffModule } from './staff/staff.module';
+import { InvoicingModule } from './invoicing/invoicing.module';
 import { AuthModule } from './auth/auth.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { CalendarModule } from './calendar/calendar.module';
@@ -71,6 +72,7 @@ function webApp(): DynamicModule[] {
     DatabaseModule,
     AuditModule,
     StaffModule,
+    InvoicingModule,
     NotificationsModule,
     HealthModule,
     AuthModule,

@@ -40,6 +40,21 @@ export class UpdateVenueDto {
   @IsOptional() @IsInt() @Min(2) @Max(60) @Type(() => Number) holdMinutes?: number;
   @IsOptional() @IsBoolean() requiresPrepayment?: boolean;
 
+  // ------------------------------------------------------------- tax --
+  @IsOptional() @IsBoolean() invoicingEnabled?: boolean;
+  @IsOptional()
+  @Matches(/^[0-3][0-9][A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, {
+    message: 'That does not look like a GSTIN.',
+  })
+  gstin?: string;
+  @IsOptional() @IsString() @MaxLength(200) legalName?: string;
+  @IsOptional() @IsString() @MaxLength(500) legalAddress?: string;
+  /** Basis points: 1800 is 18%. */
+  @IsOptional() @IsInt() @Min(0) @Max(10000) @Type(() => Number) gstRateBp?: number;
+  @IsOptional() @IsBoolean() pricesIncludeGst?: boolean;
+  @IsOptional() @IsString() @MaxLength(10) sacCode?: string;
+  @IsOptional() @IsString() @MaxLength(4) invoicePrefix?: string;
+
   @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
   /** Hours before the start a reminder goes out. Zero turns reminders off. */
   @IsOptional() @IsInt() @Min(0) @Max(72) @Type(() => Number) reminderHoursBefore?: number;

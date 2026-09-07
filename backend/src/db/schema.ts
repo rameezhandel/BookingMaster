@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   smallint,
   text,
   time,
@@ -114,6 +115,22 @@ export const venues = pgTable(
     holdMinutes: integer('hold_minutes').notNull().default(10),
     /** False means public bookings confirm immediately and are paid at the venue. */
     requiresPrepayment: boolean('requires_prepayment').notNull().default(false),
+
+    // ------------------------------------------------------------- tax --
+    /** Off until a GSTIN is set: an unregistered venue charges no GST at all. */
+    invoicingEnabled: boolean('invoicing_enabled').notNull().default(false),
+    gstin: text('gstin'),
+    /** The registered name and address, which are often not the trading ones. */
+    legalName: text('legal_name'),
+    legalAddress: text('legal_address'),
+    /** First two digits of the GSTIN; the tax split turns on it. */
+    stateCode: text('state_code'),
+    /** Basis points, so 1800 is 18%. */
+    gstRateBp: integer('gst_rate_bp').notNull().default(1800),
+    /** A counter quotes the price the customer hands over. */
+    pricesIncludeGst: boolean('prices_include_gst').notNull().default(true),
+    sacCode: text('sac_code'),
+    invoicePrefix: text('invoice_prefix'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -433,4 +450,69 @@ export const notifications = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
   },
   (t) => ({ tenantIdx: index('notification_tenant_idx').on(t.tenantId, t.createdAt) }),
+);
+
+/**
+ * The counter behind a gapless invoice series, one row per venue per financial
+ * year. Locked FOR UPDATE while an invoice is written — see the migration for
+ * why a Postgres sequence is the wrong tool here.
+ */
+export const invoiceSeries = pgTable(
+  'invoice_series',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    financialYear: text('financial_year').notNull(),
+    nextSeq: integer('next_seq').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.tenantId, t.venueId, t.financialYear] }) }),
+);
+
+/**
+ * A tax invoice or a credit note.
+ *
+ * Everything from `supplierName` down is a snapshot taken at issue: a document
+ * already handed to someone must not change when the venue edits its address.
+ */
+export const invoices = pgTable(
+  'invoice',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    reservationId: uuid('reservation_id'),
+    customerId: uuid('customer_id'),
+
+    kind: text('kind').$type<'invoice' | 'credit_note'>().notNull().default('invoice'),
+    reversesId: uuid('reverses_id'),
+
+    financialYear: text('financial_year').notNull(),
+    seq: integer('seq').notNull(),
+    number: text('number').notNull(),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+
+    supplierName: text('supplier_name').notNull(),
+    supplierGstin: text('supplier_gstin'),
+    supplierAddress: text('supplier_address'),
+    supplierStateCode: text('supplier_state_code'),
+    customerName: text('customer_name'),
+    customerPhone: text('customer_phone'),
+    customerGstin: text('customer_gstin'),
+    placeOfSupply: text('place_of_supply'),
+    sacCode: text('sac_code'),
+    description: text('description').notNull(),
+
+    gstRateBp: integer('gst_rate_bp').notNull(),
+    taxablePaise: bigint('taxable_paise', { mode: 'number' }).notNull(),
+    cgstPaise: bigint('cgst_paise', { mode: 'number' }).notNull().default(0),
+    sgstPaise: bigint('sgst_paise', { mode: 'number' }).notNull().default(0),
+    igstPaise: bigint('igst_paise', { mode: 'number' }).notNull().default(0),
+    totalPaise: bigint('total_paise', { mode: 'number' }).notNull(),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantIdx: index('invoice_tenant_idx').on(t.tenantId, t.issuedAt) }),
 );

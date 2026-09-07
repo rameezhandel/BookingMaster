@@ -90,7 +90,11 @@ before(async () => {
 });
 
 beforeEach(async () => {
-  await pool.query('DELETE FROM notification WHERE tenant_id = $1', [tenantId]);
+  // Everything, not just this tenant's. `deliverDue` drains the whole outbox by
+  // design — a worker serves every venue — so a stray pending row from another
+  // test or an interrupted run lands in this one's counts and fails it for a
+  // reason that has nothing to do with the code.
+  await pool.query('DELETE FROM notification');
   await pool.query(
     `UPDATE venue SET notifications_enabled = true, reminder_hours_before = 3 WHERE id = $1`,
     [venueId],

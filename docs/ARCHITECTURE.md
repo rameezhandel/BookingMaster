@@ -487,6 +487,57 @@ Stored as `timestamptz` in UTC; every venue carries an IANA timezone and all slo
 maths happens in venue-local time. India has no DST so this buys nothing today —
 but a second market would otherwise be a migration rather than a config change.
 
+## An invoice series may not have gaps
+
+A venue in India has to be able to hand over a tax invoice, and the numbering on
+it is the part with teeth: a missing number is a question during a return that
+somebody has to answer.
+
+The obvious tool is a Postgres sequence, and it is the wrong one. A sequence
+hands out numbers outside transaction control, so an invoice that rolls back
+burns its number and leaves a hole that cannot be filled. `SELECT max(seq) + 1`
+has the opposite failure: two issues at once read the same maximum and collide.
+
+So the next number lives in a row, locked `FOR UPDATE` and incremented in the
+same transaction that writes the invoice. Concurrent issues queue behind the
+lock; a transaction that rolls back returns its number, because the increment
+rolls back with it. That serialises invoicing per venue per year, which is the
+right trade — invoices are issued at human speed, one customer at a time.
+
+Both failure modes are tested: ten invoices issued simultaneously produce ten
+distinct numbers and an unbroken series, and a transaction that takes a number
+and then fails leaves it for the next one.
+
+**Everything on the document is a snapshot.** Supplier name, address, GSTIN,
+customer details — all copied onto the invoice at issue rather than joined from
+the venue and customer as they are now. Less normalised and quite deliberate: an
+invoice is a record of what was said at the time, and a venue that moves
+premises must not silently rewrite documents already handed to people.
+
+**An issued invoice cannot be edited or deleted**, enforced by restrictive
+policies that permit neither, the same way the audit trail is append-only. A
+mistake is corrected by issuing a credit note, which is both the legal mechanism
+and the honest one: it leaves both halves of what happened on the record. The
+one thing that still removes an invoice is its tenant being deleted — cascades
+run as the table owner and are not filtered by row policies — so closing an
+account remains possible. There is a test for that, because "you can never
+delete a tenant" would be an unpleasant thing to learn from a customer.
+
+**The arithmetic is integer paise throughout.** Where a price includes the tax —
+which is how a counter in India quotes it, ₹500 being what the customer hands
+over — the taxable value is rounded and the tax is the remainder, so the two
+always add back to exactly what was paid. The central and state halves are split
+so the second takes the odd paisa rather than both rounding independently. The
+tests check the invariant across every amount and rate rather than a few
+examples, and the database repeats the check as a constraint: a document that
+does not add up is not storable.
+
+**What this is not.** It implements the mechanics; it does not decide what a
+venue owes. The rate, the SAC code and whether prices include tax are the
+venue's to set with their accountant, and invoicing stays off until a GSTIN is
+entered — a venue below the registration threshold charges no GST at all, and
+inventing tax for them would be worse than having no feature.
+
 ## What the end-to-end tests are for
 
 Three of this product's claims cannot be checked from a unit test, because they
@@ -530,6 +581,7 @@ backend/
     auth/            sign-in, and the guard that reads role and account
                      status from the database rather than the token
     staff/           logins, invitations and roles
+    invoicing/       GST arithmetic, and the gapless invoice series
     venues/          venues and courts
     pricing/         price rules and the pure resolver
     calendar/        day and week availability
