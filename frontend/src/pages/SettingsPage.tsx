@@ -2,17 +2,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CancellationPolicyCard } from '../components/CancellationPolicyCard';
 import { MessagesCard } from '../components/MessagesCard';
+import { TeamCard } from '../components/TeamCard';
 import { ClosuresCard } from '../components/ClosuresCard';
 import { PublishCard } from '../components/PublishCard';
 import { HoursModal } from '../components/HoursModal';
 import { Modal } from '../components/Modal';
 import { ApiError, del, get, patch, post } from '../lib/api';
 import { useVenue } from '../lib/venue';
+import { useAuth } from '../lib/auth';
 import { DAY_NAMES, describeDays, paiseFromRupeeInput, rupees, shortTime } from '../lib/format';
 import type { Court, PriceRule, Venue } from '../lib/types';
 
 export function SettingsPage() {
   const { venue, venues } = useVenue();
+  const { me } = useAuth();
+  const isOwner = me?.role === 'owner';
   const [addingVenue, setAddingVenue] = useState(false);
 
   const { data: courts } = useQuery({
@@ -33,7 +37,7 @@ export function SettingsPage() {
             : 'Settings apply to this venue'}
         </span>
         <span className="spacer" />
-        <button onClick={() => setAddingVenue(true)}>Add another venue</button>
+        {isOwner && <button onClick={() => setAddingVenue(true)}>Add another venue</button>}
       </div>
 
       <VenueCard key={venue.id} venue={venue} />
@@ -42,6 +46,7 @@ export function SettingsPage() {
       <ClosuresCard venue={venue} courts={courts ?? []} />
       <CancellationPolicyCard key={`policy-${venue.id}`} venue={venue} />
       <MessagesCard key={`messages-${venue.id}`} venue={venue} />
+      {isOwner && <TeamCard />}
 
       {addingVenue && <AddVenueModal onClose={() => setAddingVenue(false)} />}
     </div>

@@ -305,6 +305,13 @@ A worker claims a row with a conditional `UPDATE ... WHERE attempts = $seen`
 before calling the provider. Claiming after sending, or not at all, is how
 customers get told twice.
 
+Due-ness is decided by the database's clock, not the worker's. `next_attempt_at`
+is written by Postgres, which keeps microseconds, while a JavaScript `Date` is
+truncated to milliseconds — so a row scheduled in the same millisecond as the
+query reads as not-yet-due and is quietly skipped. Across several replicas the
+same comparison drifts with whatever each machine thinks the time is. One clock,
+and it is the one that wrote the value.
+
 Deduplication is a unique index on `(tenant_id, dedupe_key)` and an
 insert-and-catch, not a check-then-insert: two webhook retries arriving together
 would both pass the check and both send.
@@ -366,6 +373,56 @@ opt out with an explicit `app.bypass_rls`, which is a deliberate act rather than
 the accident of a missing setting — and the nightly job goes further, adopting
 each tenant in turn so its work stays subject to the same policies.
 
+## The token is not trusted about who you are
+
+Every venue used to have exactly one login, so a manager and three desk staff
+shared it. That is how the record of who did what becomes worthless, and how
+someone who leaves keeps their access until a password change inconveniences
+everybody at once — which is why it never happens.
+
+Staff are invited by email. The owner names the person; the person sets their
+own password, so it is known to nobody else and never travels through a chat
+message. Only the invitation token's *hash* is stored, for the same reason OTP
+codes are hashed: a leaked backup must not hand out working invitations. An
+invitation is single-use, and it is spent in the same transaction that creates
+the login, so two taps on the link cannot make two accounts.
+
+Expired, revoked, already used and never existed all answer identically. A token
+is a secret, and distinguishing the cases turns the endpoint into an oracle for
+guessing them.
+
+**A JWT is a snapshot, so role and status are read from the database on every
+request.** Switching off someone who left, or demoting them, would otherwise do
+nothing until their token expired hours later — and "revoked, give or take a few
+hours" is not revoked. The cost is one primary-key lookup per request, which is
+the right price for being able to lock someone out and mean it.
+
+That check lives inside `JwtAuthGuard` rather than in a guard of its own,
+because that guard is already on every authenticated controller. A separate
+guard is one somebody forgets to add to the route they wrote on a Friday, and
+the hole that leaves is invisible until it is exploited.
+
+**Staff may do anything the day needs**; the owner-only list is short and is
+about the *business* rather than the day: revenue, prices, opening hours, what
+the public sees, the activity log, and who else has a login. A permission model
+that gets in the way at the counter is worked around by sharing the owner's
+login, which is the problem this exists to solve.
+
+People are deactivated, never deleted — their bookings, payments and audit
+entries all point at them, and removing the row would either take that history
+with it or leave it anonymous. The last active owner cannot be switched off or
+demoted, and nobody can change their own role or lock themselves out: an account
+with no active owner cannot be administered by anyone.
+
+**`app_user` moved under row-level security to make this safe.** It was
+originally left out because signing in has to find a user before any tenant is
+known, which made every staff query's tenant scoping a hand-written `WHERE`
+with no database backstop. Fine when there was one user per tenant and nothing
+to list; wrong the moment an owner can manage other people. The default is now
+closed, and the two places that genuinely must cross tenants — signing in, and
+redeeming an invitation, neither of which has a tenant yet — say so out loud by
+bypassing.
+
 ## Every change is recorded
 
 `audit_event` is append-only: row-level security permits INSERT and SELECT, and
@@ -402,6 +459,7 @@ backend/
     reports/         billed, collected, outstanding
     audit/           append-only record of who did what
     public/          venue page, availability, holds, OTP identity
+    staff/           logins, invitations and roles
     payments/        the ledger, plus checkout and the payment gateway
     notifications/   the message outbox, templates and the sending worker
   test/              unit tests plus the concurrency proof

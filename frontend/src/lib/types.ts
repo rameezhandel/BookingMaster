@@ -248,3 +248,23 @@ export interface AuditEvent {
   requestId: string | null;
   createdAt: string;
 }
+
+/** Someone with a login to this account. */
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'owner' | 'staff';
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'staff';
+  expiresAt: string;
+  createdAt: string;
+}
