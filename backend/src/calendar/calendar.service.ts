@@ -34,7 +34,7 @@ export class CalendarService {
     if (!DATE_RE.test(date)) throw new BadRequestException('date must be YYYY-MM-DD.');
 
     const venue = await this.venues.get(tenantId, venueId);
-    const courts = await this.venues.listResources(tenantId, venueId);
+    const courts = await this.venues.listResources(tenantId, venueId, false, 'court');
     const tz = venue.timezone;
 
     const dayStart = startOfDay(date, tz);
@@ -127,7 +127,7 @@ export class CalendarService {
     if (!DATE_RE.test(date)) throw new BadRequestException('date must be YYYY-MM-DD.');
 
     const venue = await this.venues.get(tenantId, venueId);
-    const courts = await this.venues.listResources(tenantId, venueId);
+    const courts = await this.venues.listResources(tenantId, venueId, false, 'court');
     const tz = venue.timezone;
 
     const weekStart = startOfDay(date, tz).startOf('week');

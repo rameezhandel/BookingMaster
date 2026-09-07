@@ -53,8 +53,14 @@ export class VenuesController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Query('includeInactive', new ParseBoolPipe({ optional: true })) includeInactive?: boolean,
+    @Query('kind') kind?: 'court' | 'hall',
   ) {
-    return this.venues.listResources(user.tenantId, id, includeInactive ?? false);
+    return this.venues.listResources(
+      user.tenantId,
+      id,
+      includeInactive ?? false,
+      kind === 'court' || kind === 'hall' ? kind : undefined,
+    );
   }
 
   @OwnerOnly()

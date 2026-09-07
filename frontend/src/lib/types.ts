@@ -66,10 +66,18 @@ export interface CustomerMessage {
   customerName: string | null;
 }
 
+/**
+ * Something bookable: a court, or a hall.
+ *
+ * They share a row because they share the one guarantee that matters — no two
+ * bookings on the same thing at the same time — and differ in how they are
+ * sold. A court has a sport and an hourly grid; a hall has neither.
+ */
 export interface Court {
   id: string;
+  kind: 'court' | 'hall';
   name: string;
-  sport: string;
+  sport: string | null;
   slotMinutes: number;
   isActive: boolean;
   sortOrder: number;
@@ -133,7 +141,9 @@ export interface Slot {
   reservation: ReservationSummary | null;
 }
 
-export interface CalendarCourt extends Pick<Court, 'id' | 'name' | 'sport' | 'slotMinutes'> {
+export interface CalendarCourt extends Pick<Court, 'id' | 'name' | 'slotMinutes'> {
+  /** Always present here: the day grid is courts only. */
+  sport: string;
   closed: boolean;
   closedReason: string | null;
   openingSource: 'weekly' | 'venue-override' | 'court-override';
@@ -206,7 +216,7 @@ export interface ReportSummary {
   billedPaise: number;
   collectedPaise: number;
   outstandingPaise: number;
-  byCourt: { resourceId: string; name: string; sport: string; bookings: number; billedPaise: number; bookedMinutes: number }[];
+  byCourt: { resourceId: string; name: string; sport: string | null; bookings: number; billedPaise: number; bookedMinutes: number }[];
 }
 
 export interface BookingSeries {
@@ -304,4 +314,58 @@ export interface Invite {
   role: 'owner' | 'staff';
   expiresAt: string;
   createdAt: string;
+}
+
+// ------------------------------------------------------------------- halls --
+
+export type EnquiryStatus = 'new' | 'visit_scheduled' | 'quoted' | 'won' | 'lost';
+
+/**
+ * Someone asking about the hall.
+ *
+ * An enquiry never blocks a date — several families can be considering the same
+ * Saturday, which is how venues really work. It blocks one only once it turns
+ * into a booking, through `POST /enquiries/:id/book`.
+ */
+export interface Enquiry {
+  id: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string | null;
+  eventType: string | null;
+  /** Absent while it is still "sometime in November". */
+  eventDate: string | null;
+  guestCount: number | null;
+  status: EnquiryStatus;
+  visitAt: string | null;
+  quotedPaise: number | null;
+  lostReason: string | null;
+  notes: string | null;
+  resourceId: string | null;
+  hallName: string | null;
+  reservationId: string | null;
+  createdAt: string;
+}
+
+/** One hall's committed dates over a range. */
+export interface HallAvailability {
+  timezone: string;
+  from: string;
+  to: string;
+  halls: {
+    id: string;
+    name: string;
+    bookings: {
+      id: string;
+      status: string;
+      /** Set while the date is only tentatively held, and released after it. */
+      holdUntil: string | null;
+      from: string;
+      /** Inclusive: the last day the hall is unavailable. */
+      to: string;
+      eventFrom: string | null;
+      eventTo: string | null;
+      customerName: string | null;
+    }[];
+  }[];
 }

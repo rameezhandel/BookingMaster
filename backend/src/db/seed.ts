@@ -12,6 +12,7 @@ import * as schema from './schema';
 import {
   cancellationTiers,
   customers,
+  enquiries,
   payments,
   priceRules,
   reservations,
@@ -93,6 +94,21 @@ async function main() {
           slotMinutes: spec.slotMinutes,
         })),
       )
+      .returning();
+
+    // The banquet hall, alongside the courts. It is deliberately part of the
+    // same venue: the operator who runs both is exactly who this is for, and
+    // separating them would make the second vertical someone else's product.
+    const [hall] = await db
+      .insert(resources)
+      .values({
+        tenantId: tenant.id,
+        venueId: venue.id,
+        kind: 'hall',
+        name: 'Banquet Hall',
+        sport: null,
+        sortOrder: courtSpecs.length,
+      })
       .returning();
 
     // Weekday and weekend hours differ, which is true of nearly every venue.
@@ -269,9 +285,62 @@ async function main() {
       blockReason: 'Floor re-taping',
     });
 
+    // The hall pipeline, in the state a real one is always in: several families
+    // considering the same Saturday, none of them blocking it, and one date
+    // actually held.
+    const saturday = today.plus({ days: (13 - today.weekday) % 7 || 7 });
+    await db.insert(enquiries).values([
+      {
+        tenantId: tenant.id,
+        venueId: venue.id,
+        resourceId: hall.id,
+        contactName: 'Meera Iyer',
+        contactPhone: '+919845044556',
+        eventType: 'Wedding reception',
+        eventDate: saturday.toISODate()!,
+        guestCount: 300,
+        status: 'new',
+        notes: 'Wants to see the hall before deciding. Asked about parking.',
+      },
+      {
+        tenantId: tenant.id,
+        venueId: venue.id,
+        resourceId: hall.id,
+        contactName: 'Vikram Shetty',
+        contactPhone: '+919845077889',
+        eventType: 'Engagement',
+        eventDate: saturday.toISODate()!,
+        guestCount: 150,
+        status: 'visit_scheduled',
+        visitAt: today.plus({ days: 2, hours: 17 }).toJSDate(),
+      },
+      {
+        tenantId: tenant.id,
+        venueId: venue.id,
+        resourceId: hall.id,
+        contactName: 'Anita Desai',
+        contactPhone: '+919845033445',
+        eventType: 'Birthday party',
+        eventDate: saturday.toISODate()!,
+        guestCount: 80,
+        status: 'quoted',
+        quotedPaise: 4500000,
+      },
+      {
+        tenantId: tenant.id,
+        venueId: venue.id,
+        contactName: 'Rakesh Gupta',
+        contactPhone: '+919845066778',
+        eventType: 'Corporate offsite',
+        guestCount: 60,
+        status: 'lost',
+        lostReason: 'Went with a hotel that could do rooms as well.',
+      },
+    ]);
+
     console.log('\nSeeded demo data.');
     console.log(`  venue    ${venue.name}`);
-    console.log(`  courts   ${courts.length}`);
+    console.log(`  courts   ${courts.length}, plus ${hall.name}`);
     console.log(`  closed   ${holiday.toISODate()} (Diwali), turf open 18:00-23:00`);
     console.log(`  login    ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
     console.log(`  public   /v/${venue.slug}\n`);

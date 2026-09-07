@@ -17,6 +17,8 @@ CONSTRAINT reservation_no_overlap EXCLUDE USING gist (
 **Owner console**
 
 - Day calendar across every court, with a week occupancy strip
+- Banquet halls alongside the courts: an enquiry pipeline, tentative holds that
+  expire in days, and a diary that answers "is the 14th free?"
 - Quick-book a caller or walk-in in three taps; block time for rain or maintenance
 - Opening hours per weekday, several windows a day, date overrides for holidays
 - Recurring weekly bookings
@@ -106,8 +108,8 @@ startup and refuses to boot in production if it can bypass.
 ## Tests
 
 ```bash
-npm test        # 179 unit and database tests; needs DATABASE_URL
-npm run e2e     # 8 end-to-end tests, against the built app in a real browser
+npm test        # 196 unit and database tests; needs DATABASE_URL
+npm run e2e     # 10 end-to-end tests, against the built app in a real browser
 npm run typecheck
 ```
 
@@ -134,6 +136,8 @@ The ones worth knowing about:
 - **GST** — the tax split reconciles to the paisa at every amount and rate, and
   the invoice series survives ten simultaneous issues and a rollback with no
   gap.
+- **Halls** — three families enquiring about the same Saturday create no
+  bookings at all; the date blocks only once one of them holds it.
 
 And end-to-end, in a browser against the built app:
 
@@ -145,6 +149,8 @@ And end-to-end, in a browser against the built app:
   pressed.
 - **The console on a phone** — no page slides sideways, every tab is reachable,
   and a booking can be taken.
+- **Two families, one Saturday** — both enquiries sit open together, and the
+  second is refused only once the first has actually taken the date.
 
 ## Deploying
 
@@ -164,7 +170,8 @@ backend/
   migrations/     hand-written SQL — the exclusion constraint is not
                   expressible in the ORM
   src/            NestJS: auth, staff, venues, pricing, calendar, reservations,
-                  series, cancellation, payments, public, notifications, audit
+                  series, cancellation, payments, public, notifications, halls,
+                  invoicing, audit
   test/           unit tests plus the concurrency, RLS and permission proofs
 frontend/         React + Vite
   src/pages/      the owner console

@@ -62,7 +62,15 @@ export class UpdateVenueDto {
 
 export class CreateResourceDto {
   @IsString() @MinLength(1) @MaxLength(120) name: string;
-  @IsString() @MinLength(1) @MaxLength(60) sport: string;
+  /**
+   * A court is booked by the hour off a slot grid; a hall is booked by the
+   * event, through the enquiry pipeline. Only the kind is chosen here — the
+   * two are different enough that changing one into the other later would
+   * strand its bookings, so there is no way to switch.
+   */
+  @IsOptional() @IsIn(['court', 'hall']) kind?: 'court' | 'hall';
+  /** Required for a court, meaningless for a hall. */
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(60) sport?: string;
   @IsOptional() @IsIn([30, 60, 90, 120]) @Type(() => Number) slotMinutes?: number;
   /** Starting hours, applied to all seven days. Refine per day via PUT /resources/:id/hours. */
   @IsOptional() @Matches(TIME_RE, { message: 'opensAt must be HH:MM' }) opensAt?: string;

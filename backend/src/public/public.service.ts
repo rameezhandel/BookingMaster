@@ -19,7 +19,7 @@ export interface PublicVenue {
   timezone: string;
   bookingWindowDays: number;
   minNoticeMinutes: number;
-  courts: { id: string; name: string; sport: string; slotMinutes: number }[];
+  courts: { id: string; name: string; sport: string | null; slotMinutes: number }[];
 }
 
 @Injectable()
@@ -67,7 +67,16 @@ export class PublicService {
           slotMinutes: resources.slotMinutes,
         })
         .from(resources)
-        .where(and(eq(resources.venueId, found.id), eq(resources.isActive, true)))
+        // Courts only. A hall is sold by the date through an enquiry, so
+        // showing it here as a grid of bookable hours would be offering
+        // something that does not exist.
+        .where(
+          and(
+            eq(resources.venueId, found.id),
+            eq(resources.isActive, true),
+            eq(resources.kind, 'court'),
+          ),
+        )
         .orderBy(asc(resources.sortOrder), asc(resources.createdAt));
 
       return {
@@ -115,7 +124,16 @@ export class PublicService {
           slotMinutes: resources.slotMinutes,
         })
         .from(resources)
-        .where(and(eq(resources.venueId, found.id), eq(resources.isActive, true)))
+        // Courts only. A hall is sold by the date through an enquiry, so
+        // showing it here as a grid of bookable hours would be offering
+        // something that does not exist.
+        .where(
+          and(
+            eq(resources.venueId, found.id),
+            eq(resources.isActive, true),
+            eq(resources.kind, 'court'),
+          ),
+        )
         .orderBy(asc(resources.sortOrder), asc(resources.createdAt));
 
       const courtIds = courts.map((c) => c.id);

@@ -71,7 +71,9 @@ export class VenuesService {
     // Publishing a venue with no courts would give the public an empty page and
     // a bad first impression of the venue, not of us.
     if (dto.isPublished && !existing.isPublished) {
-      const courts = await this.listResources(tenantId, venueId);
+      // Courts specifically: the public page is the slot grid, and a venue
+      // with only halls has nothing to put on it.
+      const courts = await this.listResources(tenantId, venueId, false, 'court');
       if (courts.length === 0) {
         throw new BadRequestException('Add at least one court before publishing this venue.');
       }
@@ -100,15 +102,27 @@ export class VenuesService {
 
   // ---------------------------------------------------------- resources --
 
-  async listResources(tenantId: string, venueId: string, includeInactive = false) {
+  /**
+   * Everything bookable at a venue.
+   *
+   * `kind` narrows it to courts or to halls. The court calendar asks for courts
+   * because a hall has no slot grid to draw — its bookings are day-shaped and
+   * live on the Halls page instead. Settings asks for both, because that is
+   * where you see what the venue actually has.
+   */
+  async listResources(
+    tenantId: string,
+    venueId: string,
+    includeInactive = false,
+    kind?: 'court' | 'hall',
+  ) {
     await this.get(tenantId, venueId);
-    const where = includeInactive
-      ? and(eq(resources.tenantId, tenantId), eq(resources.venueId, venueId))
-      : and(
-          eq(resources.tenantId, tenantId),
-          eq(resources.venueId, venueId),
-          eq(resources.isActive, true),
-        );
+    const where = and(
+      eq(resources.tenantId, tenantId),
+      eq(resources.venueId, venueId),
+      includeInactive ? undefined : eq(resources.isActive, true),
+      kind ? eq(resources.kind, kind) : undefined,
+    );
     return this.db
       .select()
       .from(resources)
@@ -128,6 +142,30 @@ export class VenuesService {
 
   async createResource(tenantId: string, venueId: string, dto: CreateResourceDto) {
     await this.get(tenantId, venueId);
+    const kind = dto.kind ?? 'court';
+
+    if (kind === 'hall') {
+      // A hall gets no opening hours and no slot grid. Events run to their own
+      // schedule — a reception until one in the morning is normal — so hours
+      // would only be a fence nobody wants enforced.
+      const [hall] = await this.db
+        .insert(resources)
+        .values({
+          tenantId,
+          venueId,
+          kind: 'hall',
+          name: dto.name,
+          sport: null,
+          slotMinutes: 60,
+          sortOrder: dto.sortOrder ?? 0,
+        })
+        .returning();
+      return hall;
+    }
+
+    if (!dto.sport?.trim()) {
+      throw new BadRequestException('A court needs a sport.');
+    }
     const opensAt = dto.opensAt ?? '06:00';
     const closesAt = dto.closesAt ?? '23:00';
     this.assertHours(opensAt, closesAt, dto.slotMinutes ?? 60);
@@ -177,7 +215,7 @@ export class VenuesService {
    * take their bookings, and therefore the revenue record, with them.
    */
   async deleteResource(tenantId: string, resourceId: string) {
-    await this.getResource(tenantId, resourceId);
+    const resource = await this.getResource(tenantId, resourceId);
     const [{ value: used }] = await this.db
       .select({ value: count() })
       .from(reservations)
@@ -191,7 +229,7 @@ export class VenuesService {
 
     if (used > 0) {
       throw new ConflictException(
-        'This court has bookings against it. Deactivate it instead so its history is kept.',
+        `This ${resource.kind} has bookings against it. Deactivate it instead so its history is kept.`,
       );
     }
     await this.db

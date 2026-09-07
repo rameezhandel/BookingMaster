@@ -538,10 +538,61 @@ venue's to set with their accountant, and invoicing stays off until a GSTIN is
 entered — a venue below the registration threshold charges no GST at all, and
 inventing tax for them would be worse than having no feature.
 
+## A hall sells a date, not an hour
+
+A banquet hall is the same business as the courts to the person who owns both,
+and a different product. Nobody books a wedding hall for the 7pm slot: they ring
+up in March about a Saturday in November, come to see it, are quoted a price, and
+decide weeks later. Most of that conversation happens before anything belongs on
+a calendar.
+
+So a hall is a `resource` with `kind = 'hall'`, sharing the reservation table and
+therefore the exclusion constraint — the guarantee is the same, and two halls
+booked over one another is exactly the failure this product exists to prevent.
+What differs is everything in front of it. A hall has no `sport`, no slot length
+and no opening hours, and it is filtered out of the court calendar and the public
+booking page, both of which are slot grids that could only misrepresent it.
+
+**An enquiry must not block the date.** This is the load-bearing rule, and the
+easy mistake. Three families really are considering the same Saturday, and the
+owner who takes all three calls is doing their job. A system that blocked the
+date on the first call would either lose them the other two or teach them to keep
+the real diary on paper — and a pipeline nobody trusts is worse than none.
+`enquiry` is therefore its own table with no interval in it at all. It cannot
+block a date because it has nothing to block one with.
+
+The calendar is touched in exactly one place, `POST /enquiries/:id/book`, and
+that is what makes the pipeline and the diary impossible to disagree. `won` is
+not settable through the ordinary update route: an enquiry becomes won by
+producing a booking, not by someone ticking it.
+
+**A hold expires in days, not minutes.** The ten-minute hold that stops two
+players racing one badminton court is the wrong instrument for a family deciding
+on a wedding venue. Same `held` status, same sweeper, a different horizon: the
+hold is given a date, and expires at the end of that day *in the venue's
+timezone* — "held until the 12th" means through the 12th, not from midnight at
+its start. It cannot be set to outlast the event it is holding, which is a
+mistake with no meaning and an obvious cost.
+
+**Two windows, because a hall has two.** The decorator wants the hall the evening
+before; the event itself is Saturday night. `during` is what is blocked and what
+the constraint sees, and `event_during` is what actually runs, kept as a separate
+column with a check that it sits inside `during`. Collapsing them would either
+sell the Friday evening twice or print the wrong time on what the customer is
+told. They are two different facts and are stored as two.
+
+**Half-open in the database, inclusive on the phone.** The stored range is
+`[start, end)`, but "which days is the hall unavailable" is a closed question,
+and an event ending at midnight ends on the day before. The diary reports the
+last day the hall is occupied rather than the first day it is free, because
+reporting Saturday as taken for a reception that finished at midnight loses the
+venue Saturday's booking, every time.
+
 ## What the end-to-end tests are for
 
-Three of this product's claims cannot be checked from a unit test, because they
-are about two things happening at once or about the browser being wrong.
+Four of this product's claims cannot be checked from a unit test, because they
+are about two things happening at once, about the browser being wrong, or about
+what is on the screen.
 
 **Two people cannot take the same slot.** A database test proves the exclusion
 constraint holds. It cannot show that the loser is *told* — that the conflict
@@ -557,6 +608,11 @@ webhook out of band and waits for the page to catch up on its own.
 was not a missing check — it was five settings cards offering staff work the
 server would refuse. The test watches for any 401 or 403 while a staff member
 uses the screens they are given, and fails if one appears.
+
+**An enquiry does not block a date, and a booking does.** Both halves matter and
+neither is visible from a single request: two enquiries for one Saturday have to
+sit open together, and the second family has to be refused — in words, at the
+desk — the moment the first has actually taken it.
 
 These were all verified by hand, repeatedly, with scripts that were thrown away
 each time. Rewriting them per change is not a test suite; it is a habit that
@@ -582,7 +638,8 @@ backend/
                      status from the database rather than the token
     staff/           logins, invitations and roles
     invoicing/       GST arithmetic, and the gapless invoice series
-    venues/          venues and courts
+    venues/          venues, courts and halls
+    halls/           the enquiry pipeline, tentative holds and the hall diary
     pricing/         price rules and the pure resolver
     calendar/        day and week availability
     availability/    opening hours and date overrides
@@ -626,15 +683,18 @@ The venue should connect **their own** Razorpay account. Pooling funds and payin
 out makes you a payment facilitator, with float, reconciliation and chargebacks
 attached. Be software first.
 
-**Next.** GST invoicing with a gapless per-tenant sequence, delivery receipts
-back from WhatsApp (`delivered` and `read` are already statuses on the row,
-waiting for the status webhook to set them), and an owner's daily digest.
+**Done — GST invoicing**, with a gapless per-venue series and credit notes, and
+**halls**, the second vertical: the enquiry pipeline, holds that expire in days,
+and a diary that answers the question asked on the phone. Both are described
+above.
 
-**Later — halls.** Wedding and function halls sell a *date*, not an hour, and the
-booking is a CRM pipeline — enquiry, site visit, quote, advance — before it is
-ever a calendar entry. They reuse the `reservation` table and almost nothing else.
-Two notes recorded now so they are not got wrong later: an *enquiry* must not
-block the date (owners let three families race for one November date; only a
-tentative hold blocks, and it expires in days not minutes), and the blocked
-interval is wider than the billed one, because the decorator wants the hall the
-evening before.
+**Next.** Delivery receipts back from WhatsApp (`delivered` and `read` are
+already statuses on the row, waiting for the status webhook to set them), and an
+owner's daily digest.
+
+**Halls, round two.** What is built covers the pipeline and the date. Still
+missing, in the order a venue would ask for them: a quote as a document the
+customer can be sent, advances and instalments against a hall booking (the
+payments ledger already supports part payments; the schedule does not exist),
+capacity and catering on the hall itself, and a month view — the diary is a list
+because a list answers "is the 14th free?", but a year of dates wants a grid.
