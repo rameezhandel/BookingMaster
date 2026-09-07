@@ -87,3 +87,108 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
           retention-days: 7
+
+  image:
+    name: docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://bookingmaster:bookingmaster@127.0.0.1:5432/bookingmaster
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the unprivileged application role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE bookingmaster LOGIN PASSWORD 'bookingmaster' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
+          CREATE DATABASE bookingmaster OWNER bookingmaster;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d bookingmaster -v ON_ERROR_STOP=1 \
+            -c 'CREATE EXTENSION IF NOT EXISTS btree_gist;'
+
+      - name: Build
+        run: docker build -t bookingmaster:ci .
+
+      # The bug this catches: npm leaves a workspace's conflicting versions in
+      # its own node_modules rather than hoisting them, and an image that copies
+      # only the root silently runs whatever the root happened to hoist.
+      - name: The backend gets the dependency versions the lockfile pins
+        run: |
+          resolved=$(docker run --rm bookingmaster:ci node -e "
+            const path = require('path');
+            const m = require.resolve('dotenv', { paths: [path.join('/app', 'backend/dist/db')] });
+            console.log(m);
+          ")
+          echo "dotenv resolves to: $resolved"
+          case "$resolved" in
+            /app/backend/node_modules/*) echo 'ok — the workspace copy' ;;
+            *) echo "The backend is loading a hoisted copy instead of its own: $resolved"; exit 1 ;;
+          esac
+
+      - name: Nothing in it runs as root
+        run: |
+          who=$(docker run --rm bookingmaster:ci id -un)
+          echo "runs as: $who"
+          [ "$who" = "node" ] || { echo "expected the unprivileged node user"; exit 1; }
+
+      # An entrypoint that ignores its arguments boots the server instead of
+      # running the command, so a release step would deploy with the migrations
+      # unapplied — and on Fly, a release machine that never exits.
+      - name: A command passed in runs instead of the server
+        run: |
+          out=$(docker run --rm bookingmaster:ci echo 'release step ran')
+          echo "got: $out"
+          [ "$out" = 'release step ran' ] || { echo 'the entrypoint ignored its arguments'; exit 1; }
+
+      - name: Migrations run as a release step
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL -e JWT_SECRET \
+            bookingmaster:ci node backend/dist/db/migrate.js
+
+      - name: The container serves the app
+        run: |
+          docker run -d --name bm --network host \
+            -e DATABASE_URL -e JWT_SECRET -e PORT=3000 \
+            bookingmaster:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/health/ready >/dev/null 2>&1; then ready=1; break; fi
+            sleep 2
+          done
+          [ "${ready:-}" = 1 ] || { echo "never became ready"; docker logs bm; exit 1; }
+
+          # The API serves the web bundle itself: one container, one origin.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)
+          [ "$code" = 200 ] || { echo "the web bundle is not being served: $code"; docker logs bm; exit 1; }
+
+          # And the API is behind it, refusing an unauthenticated request rather
+          # than answering it.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/venues)
+          [ "$code" = 401 ] || { echo "expected 401 from the API, got $code"; docker logs bm; exit 1; }
+
+          # It refuses to start in production against a role that can bypass
+          # row-level security; reaching here means that check ran and passed.
+          docker logs bm 2>&1 | grep -q 'Row-level security active' \
+            || { echo "the row-level security check did not run"; docker logs bm; exit 1; }
+
+      - name: What it said, if anything went wrong
+        if: failure()
+        run: docker logs bm || true
