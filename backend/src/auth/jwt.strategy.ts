@@ -10,6 +10,8 @@ export interface JwtPayload {
   email: string;
   name: string;
   role: 'owner' | 'staff';
+  /** Distinguishes staff tokens from customer tokens signed with the same key. */
+  typ: 'owner';
 }
 
 @Injectable()
@@ -23,6 +25,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: JwtPayload): AuthUser {
+    // Without this check a customer token — same signing key, far weaker
+    // identity proof — would authenticate against the whole owner console.
+    if (payload?.typ !== 'owner') throw new UnauthorizedException();
     if (!payload?.sub || !payload?.tid) throw new UnauthorizedException();
     return {
       id: payload.sub,

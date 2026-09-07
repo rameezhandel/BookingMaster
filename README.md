@@ -262,6 +262,64 @@ for a Tuesday in 2031, and a minimum notice, because turning up to a court booke
 ninety seconds ago is nobody's idea of a good time. Neither applies to the owner
 booking from the calendar.
 
+### Holds, and the gap the constraint cannot see
+
+A public booking takes a hold first: an ordinary reservation with status
+`held`, so it sits in the same exclusion constraint as a confirmed booking and
+two people cannot hold one slot. What it adds is a deadline.
+
+The subtle part is that **the exclusion constraint cannot evaluate `now()`**. To
+the database an expired hold still occupies its slot until something updates the
+row, so availability can honestly show a slot as free while the insert is
+rejected. A timer alone cannot close that gap — it only narrows it. So a
+conflict triggers a targeted sweep of exactly that court and interval, and one
+retry. If it fails again, the slot really is taken.
+
+Abandoned checkouts are deleted rather than cancelled: a hold that never became
+a booking is someone who closed a tab, not history, and keeping them would fill
+the owner's bookings list with ghosts. A hold that somehow attracted a payment is
+cancelled and flagged instead, so money is never detached from its record.
+
+### Catching an error inside a transaction is not enough
+
+Two bugs here were the same mistake, and it is worth stating plainly because the
+symptom is so misleading. In Postgres a **failed statement aborts the entire
+transaction**; catching the error in JavaScript does not make it usable again.
+Every later statement fails and the commit becomes a rollback — so the request
+returns `201` while nothing was written.
+
+It bit twice: an audit insert that violated a foreign key silently rolled back
+the booking it was describing, and a conflicting hold insert poisoned the
+transaction that was meant to sweep and retry. Both are now wrapped in a
+`SAVEPOINT` (a nested transaction), which confines the failure to the statement
+that caused it. `test/transactions.test.ts` demonstrates both halves so the shape
+of the fix is not refactored away.
+
+A related trap, same root: `db` resolves to the ambient transaction *from
+AsyncLocalStorage*, or the pool. Opening a transaction and setting a flag on it
+does nothing unless that transaction is the ambient one — the hold sweeper first
+failed exactly this way, with no error and no log line, just holds that never
+expired. `runAsTenant` and `runAsSystem` exist so that is done in one place.
+
+### Identity is a phone number
+
+No accounts, no passwords. A code is sent to a phone, and a verified number
+becomes a short-lived session scoped to one venue.
+
+Codes are stored only as hashes, drawn from the CSPRNG, capped at five attempts
+counted on the challenge itself (so asking for a fresh code does not reset the
+budget), and rate-limited per number on top of the endpoint's own throttle. The
+response never reveals whether a number is already a customer, so the endpoint
+cannot be used to enumerate a venue's customer list.
+
+Customer tokens and staff tokens are signed with the same key, so each carries a
+`typ` and each strategy rejects the other. Without that, a phone-verified session
+would authenticate against the entire owner console.
+
+**There is no SMS or WhatsApp provider wired up.** The default sender writes the
+code to the log and says so loudly in production rather than failing silently.
+`OtpSender` is the interface to implement.
+
 ### Tenant isolation is enforced by the database
 
 Every tenant-owned row carries `tenant_id` and every service takes it as an
@@ -330,7 +388,7 @@ backend/
     payments/        the ledger
     reports/         billed, collected, outstanding
     audit/           append-only record of who did what
-    public/          unauthenticated venue page and availability
+    public/          venue page, availability, holds, OTP identity
   test/              unit tests plus the concurrency proof
 frontend/
   src/

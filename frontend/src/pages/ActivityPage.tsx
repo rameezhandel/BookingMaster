@@ -76,7 +76,12 @@ export function ActivityPage() {
                     </span>{' '}
                     {e.summary}
                   </td>
-                  <td className="faint">{e.actorEmail ?? 'system'}</td>
+                  <td className="faint">
+                    {e.actorLabel ?? 'system'}
+                    {e.actorType === 'customer' && (
+                      <span className="faint" style={{ fontSize: 11 }}> · online</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

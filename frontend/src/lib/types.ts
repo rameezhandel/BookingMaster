@@ -218,7 +218,8 @@ export interface Page<T> {
 
 export interface AuditEvent {
   id: number;
-  actorEmail: string | null;
+  actorType: 'staff' | 'customer' | 'system';
+  actorLabel: string | null;
   action: string;
   entityType: string;
   entityId: string | null;

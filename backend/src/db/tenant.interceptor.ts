@@ -4,6 +4,7 @@ import { Observable, from, lastValueFrom } from 'rxjs';
 import { DB, type Db } from './database.module';
 import { tenantStorage } from './tenant-context';
 import type { AuthUser } from '../common/current-user.decorator';
+import { maskPhone } from '../public/otp/sender';
 
 /**
  * Runs each authenticated request inside one transaction with `app.tenant_id`
@@ -23,9 +24,14 @@ export class TenantContextInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
-    const user = request.user as AuthUser | undefined;
+    const user = request.user as (AuthUser & { phone?: string }) | undefined;
 
     if (!user?.tenantId) return next.handle();
+
+    // A customer session has a phone rather than an email and no app_user row.
+    const actor = user.email
+      ? ({ kind: 'staff', id: user.id, label: user.email } as const)
+      : ({ kind: 'customer', label: maskPhone(user.phone ?? '') } as const);
 
     return from(
       this.db.transaction(async (tx) => {
@@ -38,7 +44,7 @@ export class TenantContextInterceptor implements NestInterceptor {
             tenantId: user.tenantId,
             tx,
             requestId: request.id,
-            actor: { id: user.id, email: user.email },
+            actor,
           },
           () => lastValueFrom(next.handle()),
         );

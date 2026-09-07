@@ -78,6 +78,10 @@ export const venues = pgTable(
     isPublished: boolean('is_published').notNull().default(false),
     bookingWindowDays: integer('booking_window_days').notNull().default(30),
     minNoticeMinutes: integer('min_notice_minutes').notNull().default(60),
+    /** How long a public slot is held while someone finishes booking. */
+    holdMinutes: integer('hold_minutes').notNull().default(10),
+    /** False means public bookings confirm immediately and are paid at the venue. */
+    requiresPrepayment: boolean('requires_prepayment').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -200,6 +204,7 @@ export const reservations = pgTable(
     /** Set when this booking was produced by a recurring series. */
     seriesId: uuid('series_id'),
     occurrenceDate: date('occurrence_date'),
+    bookedByPublic: boolean('booked_by_public').notNull().default(false),
     createdBy: uuid('created_by'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     /** What the policy decided at the moment of cancelling, kept for the record. */
@@ -287,7 +292,9 @@ export const auditEvents = pgTable(
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     tenantId: uuid('tenant_id').notNull(),
     actorUserId: uuid('actor_user_id'),
-    actorEmail: text('actor_email'),
+    actorType: text('actor_type').$type<'staff' | 'customer' | 'system'>().notNull().default('staff'),
+    /** Email for staff, masked phone for a customer. Never a raw phone number. */
+    actorLabel: text('actor_label'),
     /** Dotted and past tense: booking.cancelled, payment.recorded. */
     action: text('action').notNull(),
     entityType: text('entity_type').notNull(),
@@ -298,4 +305,21 @@ export const auditEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ tenantIdx: index('audit_event_tenant_idx').on(t.tenantId, t.createdAt) }),
+);
+
+/** A phone verification in flight. The code is stored only as a hash. */
+export const otpChallenges = pgTable(
+  'otp_challenge',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    phone: text('phone').notNull(),
+    codeHash: text('code_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ lookupIdx: index('otp_challenge_lookup_idx').on(t.venueId, t.phone, t.createdAt) }),
 );

@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { get } from '../lib/api';
 import { rupees } from '../lib/format';
+import { BookingFlow } from './BookingFlow';
 
 interface PublicCourt {
   id: string;
@@ -50,7 +51,12 @@ interface Availability {
  */
 export function PublicVenuePage() {
   const { slug = '' } = useParams();
+  const qc = useQueryClient();
   const [date, setDate] = useState<string | null>(null);
+  const [picked, setPicked] = useState<{ courtId: string; courtName: string; slot: PublicSlot } | null>(
+    null,
+  );
+  const [justBooked, setJustBooked] = useState(false);
 
   const { data: venue, isLoading, error } = useQuery({
     queryKey: ['public-venue', slug],
@@ -150,26 +156,37 @@ export function PublicVenuePage() {
                 <p className="faint">Not open on this day.</p>
               ) : (
                 <div className="slot-row">
-                  {court.slots.map((slot) => (
-                    <div
-                      key={slot.start}
-                      className={`pub-slot ${slot.available ? 'free' : 'gone'}`}
-                      title={
-                        slot.available
-                          ? undefined
-                          : slot.unavailableReason === 'taken'
+                  {court.slots.map((slot) =>
+                    slot.available ? (
+                      <button
+                        key={slot.start}
+                        className="pub-slot free"
+                        onClick={() =>
+                          setPicked({ courtId: court.id, courtName: court.name, slot })
+                        }
+                      >
+                        <span className="t">{slot.label}</span>
+                        <span className="p">
+                          {slot.pricePaise !== null ? rupees(slot.pricePaise) : '—'}
+                        </span>
+                      </button>
+                    ) : (
+                      <div
+                        key={slot.start}
+                        className="pub-slot gone"
+                        title={
+                          slot.unavailableReason === 'taken'
                             ? 'Already booked'
                             : slot.unavailableReason === 'too-soon'
                               ? 'Too close to the start time'
                               : 'Not bookable'
-                      }
-                    >
-                      <span className="t">{slot.label}</span>
-                      <span className="p">
-                        {slot.available && slot.pricePaise !== null ? rupees(slot.pricePaise) : '—'}
-                      </span>
-                    </div>
-                  ))}
+                        }
+                      >
+                        <span className="t">{slot.label}</span>
+                        <span className="p">—</span>
+                      </div>
+                    ),
+                  )}
                 </div>
               )}
             </section>
@@ -177,13 +194,34 @@ export function PublicVenuePage() {
         })
       )}
 
+      {justBooked && (
+        <div className="msg info" style={{ marginTop: 16 }}>
+          Booking confirmed. The venue has your number.
+        </div>
+      )}
+
+      {picked && (
+        <BookingFlow
+          slug={slug}
+          courtId={picked.courtId}
+          courtName={picked.courtName}
+          slot={picked.slot}
+          timezone={tz}
+          onClose={() => {
+            setPicked(null);
+            qc.invalidateQueries({ queryKey: ['public-availability'] });
+          }}
+          onBooked={() => setJustBooked(true)}
+        />
+      )}
+
       <footer className="public-foot">
         {venue.phone ? (
           <p>
-            To book, call <a href={`tel:${venue.phone}`}>{venue.phone}</a>.
+            Trouble booking? Call <a href={`tel:${venue.phone}`}>{venue.phone}</a>.
           </p>
         ) : (
-          <p className="faint">Contact the venue to book.</p>
+          <p className="faint">Contact the venue if you have trouble booking.</p>
         )}
         <p className="faint">
           Bookings open up to {venue.bookingWindowDays} days ahead. Times are{' '}

@@ -2,11 +2,16 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Tx } from './database.module';
 
 export interface TenantContext {
+  /** Empty for a system context, which spans tenants deliberately. */
   tenantId: string;
   /** The transaction the request runs in, which carries the RLS setting. */
   tx: Tx;
   requestId?: string;
-  actor?: { id: string; email: string };
+  /**
+   * Who is acting. A staff member has a row in app_user; a customer has only a
+   * verified phone, and the audit trail records them differently.
+   */
+  actor?: { kind: 'staff'; id: string; label: string } | { kind: 'customer'; label: string };
 }
 
 /**

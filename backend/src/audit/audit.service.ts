@@ -22,27 +22,38 @@ export class AuditService {
    * Records an action against the current request's tenant and actor.
    *
    * Runs on the ambient transaction, so the trail commits with the change it
-   * describes: no audit entry for a booking that rolled back, and no silent
-   * change without an entry.
+   * describes: no entry for a booking that rolled back, and no silent change
+   * without an entry.
    *
-   * Never throws. An audit write failing is worth a log line, but it must not
-   * turn a completed booking into a 500 for the owner standing at the desk.
+   * The write is wrapped in a nested transaction — a SAVEPOINT — for a reason
+   * worth spelling out. In Postgres a failed statement aborts the entire
+   * surrounding transaction; catching the error in JavaScript does not undo
+   * that. Swallowing an audit failure without a savepoint therefore poisons the
+   * caller's transaction, and the request returns success while the booking it
+   * describes is rolled back. The savepoint confines the damage to the audit
+   * row, so a failure here really is only a log line.
    */
   async record(entry: AuditEntry): Promise<void> {
     const ctx = currentTenant();
-    if (!ctx) return;
+    // A system context spans tenants and has no tenant to attribute to; those
+    // jobs log instead.
+    if (!ctx?.tenantId) return;
 
+    const actor = ctx.actor;
     try {
-      await this.db.insert(auditEvents).values({
-        tenantId: ctx.tenantId,
-        actorUserId: ctx.actor?.id ?? null,
-        actorEmail: ctx.actor?.email ?? null,
-        action: entry.action,
-        entityType: entry.entityType,
-        entityId: entry.entityId ?? null,
-        summary: entry.summary,
-        data: entry.data ?? null,
-        requestId: ctx.requestId ?? null,
+      await this.db.transaction(async (tx) => {
+        await tx.insert(auditEvents).values({
+          tenantId: ctx.tenantId,
+          actorUserId: actor?.kind === 'staff' ? actor.id : null,
+          actorType: actor?.kind ?? 'system',
+          actorLabel: actor?.label ?? null,
+          action: entry.action,
+          entityType: entry.entityType,
+          entityId: entry.entityId ?? null,
+          summary: entry.summary,
+          data: entry.data ?? null,
+          requestId: ctx.requestId ?? null,
+        });
       });
     } catch (err) {
       this.logger.error(

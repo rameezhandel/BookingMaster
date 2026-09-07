@@ -28,6 +28,13 @@ export class SlotUnavailableError extends ConflictException {
   }
 }
 
+/** Nest 10 has no built-in 429 exception. */
+export class TooManyRequestsError extends HttpException {
+  constructor(message: string) {
+    super({ statusCode: 429, error: 'TooManyRequests', message }, HttpStatus.TOO_MANY_REQUESTS);
+  }
+}
+
 /**
  * The court is shut at that time. Carries its own code so the UI can offer
  * "book anyway" rather than pattern-matching on prose.

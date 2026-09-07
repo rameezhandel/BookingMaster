@@ -407,3 +407,6 @@ table.grid th .hours { display: block; font-weight: 500; color: var(--text-faint
 
 .public-foot { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 14px; }
 .public-foot p { margin: 4px 0; }
+
+button.pub-slot { cursor: pointer; font: inherit; }
+button.pub-slot.free:hover { border-color: var(--accent); }

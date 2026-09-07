@@ -38,7 +38,7 @@ export class PublicService {
    * narrow — one row, three columns, no customer data — and everything after it
    * runs adopted into that tenant under the ordinary policies.
    */
-  private async resolveSlug(slug: string) {
+  async resolveSlug(slug: string) {
     const [venue] = await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       return tx
