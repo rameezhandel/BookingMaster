@@ -170,4 +170,20 @@ describe('the owner/staff split', () => {
       );
     }
   });
+
+  it('does not hand staff the venue wizard', () => {
+    // Creating a venue is owner-only. A business always has a venue by the time
+    // it has staff, so this is not reachable today — but "not reachable today"
+    // is a property of two other screens, and it should not be what stands
+    // between a desk person and a form where every button fails.
+    const firstRun = readFileSync(
+      join(__dirname, '..', '..', 'frontend', 'src', 'components', 'FirstRun.tsx'),
+      'utf8',
+    );
+    assert.match(
+      firstRun,
+      /role !== 'owner'|role === 'owner'/,
+      'FirstRun creates a venue, which is owner-only, so it must check the role',
+    );
+  });
 });

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError, post } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { Venue } from '../lib/types';
 
 const SPORTS = ['badminton', 'cricket', 'tennis', 'football', 'basketball', 'squash', 'pickleball'];
@@ -11,6 +12,7 @@ const SPORTS = ['badminton', 'cricket', 'tennis', 'football', 'basketball', 'squ
  * base price so the grid is immediately usable.
  */
 export function FirstRun() {
+  const { me } = useAuth();
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [sport, setSport] = useState('badminton');
@@ -41,6 +43,19 @@ export function FirstRun() {
     },
     onSuccess: () => qc.invalidateQueries(),
   });
+
+  // Creating a venue is owner-only on the server. Reachable today only because
+  // a business always has a venue by the time it has staff — but if that ever
+  // stops being true, staff should be told who can fix it rather than handed a
+  // wizard whose every button fails.
+  if (me?.role !== 'owner') {
+    return (
+      <div className="empty card">
+        <h3>No venue set up yet</h3>
+        <p>An account owner needs to add one before there is a calendar to show.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="card" style={{ maxWidth: 520, margin: '40px auto' }}>
