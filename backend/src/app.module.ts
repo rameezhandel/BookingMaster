@@ -18,6 +18,7 @@ import { TenantContextInterceptor } from './db/tenant.interceptor';
 import { HealthModule } from './health/health.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
+import { PublicModule } from './public/public.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { SeriesModule } from './series/series.module';
@@ -65,6 +66,7 @@ function webApp(): DynamicModule[] {
     CustomersModule,
     CancellationModule,
     ReservationsModule,
+    PublicModule,
     SeriesModule,
     PaymentsModule,
     CalendarModule,

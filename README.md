@@ -240,6 +240,28 @@ customer what they get back after the booking is already cancelled is the wrong
 order. A ladder that pays out more for cancelling later is rejected, because that
 mistake is invisible until a customer finds it.
 
+### The public page shows availability and nothing else
+
+A venue can publish a page at `/v/<slug>` for its players. Publishing is opt-in,
+refused until the venue has at least one court, and an unpublished slug returns
+the same 404 as a nonexistent one — so a slug cannot be probed to find out who is
+about to launch.
+
+The public responses are built from an explicit column list rather than by
+stripping fields off an internal shape. A taken slot is reported as `taken` and
+nothing more: who booked it, what they paid, and whether it is a booking or
+maintenance are absent because the query never selects them.
+
+Resolving a slug to a tenant is the one query in the system that legitimately
+crosses tenants — a visitor arrives with a slug and nothing else. It is
+deliberately narrow (one row, three columns, no customer data), and everything
+after it runs adopted into that tenant under the ordinary policies.
+
+Two limits keep the public honest: a booking window, so nobody reserves a court
+for a Tuesday in 2031, and a minimum notice, because turning up to a court booked
+ninety seconds ago is nobody's idea of a good time. Neither applies to the owner
+booking from the calendar.
+
 ### Tenant isolation is enforced by the database
 
 Every tenant-owned row carries `tenant_id` and every service takes it as an
@@ -308,6 +330,7 @@ backend/
     payments/        the ledger
     reports/         billed, collected, outstanding
     audit/           append-only record of who did what
+    public/          unauthenticated venue page and availability
   test/              unit tests plus the concurrency proof
 frontend/
   src/

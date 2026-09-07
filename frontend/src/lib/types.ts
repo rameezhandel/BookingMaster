@@ -4,6 +4,10 @@ export interface Venue {
   timezone: string;
   address: string | null;
   phone: string | null;
+  slug: string | null;
+  isPublished: boolean;
+  bookingWindowDays: number;
+  minNoticeMinutes: number;
 }
 
 export interface Court {

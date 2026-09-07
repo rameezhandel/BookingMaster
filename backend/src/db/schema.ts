@@ -73,6 +73,11 @@ export const venues = pgTable(
     timezone: text('timezone').notNull().default('Asia/Kolkata'),
     address: text('address'),
     phone: text('phone'),
+    /** Unique across the whole system: it appears in the public URL. */
+    slug: text('slug'),
+    isPublished: boolean('is_published').notNull().default(false),
+    bookingWindowDays: integer('booking_window_days').notNull().default(30),
+    minNoticeMinutes: integer('min_notice_minutes').notNull().default(60),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

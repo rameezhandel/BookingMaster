@@ -7,11 +7,23 @@ import { BookingsPage } from './pages/BookingsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { SeriesPage } from './pages/SeriesPage';
 import { ActivityPage } from './pages/ActivityPage';
+import { PublicVenuePage } from './public/PublicVenuePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 
 export default function App() {
   const { me, loading, logout } = useAuth();
+  const isPublic = location.pathname.startsWith('/v/');
+
+  // The public booking page has no account behind it, so it renders before the
+  // auth gate rather than inside it.
+  if (isPublic) {
+    return (
+      <Routes>
+        <Route path="/v/:slug" element={<PublicVenuePage />} />
+      </Routes>
+    );
+  }
 
   if (loading) {
     return (

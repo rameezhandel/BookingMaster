@@ -365,3 +365,45 @@ table.grid th .hours { display: block; font-weight: 500; color: var(--text-faint
   font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
   background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
 }
+
+/* ------------------------------------------------------ public page -- */
+/* Seen on a phone, on a bad connection, by someone who wants to know if 7pm
+   is free. Bigger touch targets and less chrome than the owner console. */
+
+.public-shell { max-width: 820px; margin: 0 auto; padding: 24px 16px 64px; }
+
+.public-head { margin-bottom: 20px; }
+.public-head h1 { font-size: 24px; margin-bottom: 4px; }
+.public-head p { margin: 2px 0; font-size: 14px; }
+
+.daypick { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 22px; }
+.daypick button {
+  display: flex; flex-direction: column; gap: 2px; align-items: center;
+  padding: 9px 14px; min-width: 78px; flex: 0 0 auto;
+}
+.daypick .dow { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.daypick .dnum { font-size: 14px; font-weight: 650; }
+.daypick button.active { border-color: var(--accent); background: var(--accent-soft); }
+.daypick button.active .dow { color: var(--accent); }
+
+.court-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
+}
+.court-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.court-head h2 { font-size: 16px; }
+
+.slot-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+.pub-slot {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 9px 6px; text-align: center;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.pub-slot .t { font-weight: 650; font-size: 14px; font-variant-numeric: tabular-nums; }
+.pub-slot .p { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.pub-slot.free { background: var(--booked); border-color: var(--booked-border); }
+.pub-slot.free .t { color: var(--booked-text); }
+.pub-slot.gone { background: var(--past); border-style: dashed; opacity: 0.55; }
+
+.public-foot { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 14px; }
+.public-foot p { margin: 4px 0; }

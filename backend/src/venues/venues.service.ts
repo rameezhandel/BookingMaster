@@ -4,6 +4,8 @@ import { DateTime } from 'luxon';
 import { DB, type Db } from '../db/database.module';
 import { OCCUPYING_STATUSES, reservations, resourceHourRules, resources, venues } from '../db/schema';
 import { timeToMinutes } from '../common/time';
+import { PG_UNIQUE_VIOLATION } from '../common/errors';
+import { slugCandidates } from './slug';
 import type { CreateResourceDto, CreateVenueDto, UpdateResourceDto, UpdateVenueDto } from './dto';
 
 @Injectable()
@@ -33,22 +35,60 @@ export class VenuesService {
   async create(tenantId: string, dto: CreateVenueDto) {
     const timezone = dto.timezone ?? 'Asia/Kolkata';
     this.assertValidTimezone(timezone);
-    const [venue] = await this.db
-      .insert(venues)
-      .values({ tenantId, name: dto.name, timezone, address: dto.address, phone: dto.phone })
-      .returning();
-    return venue;
+
+    // The slug is unique system-wide, so a tenant-scoped SELECT could never see
+    // a clash. Let the unique index decide and step to the next candidate.
+    for (const slug of slugCandidates(dto.name)) {
+      try {
+        const [venue] = await this.db
+          .insert(venues)
+          .values({
+            tenantId,
+            name: dto.name,
+            timezone,
+            address: dto.address,
+            phone: dto.phone,
+            slug,
+          })
+          .returning();
+        return venue;
+      } catch (err) {
+        if ((err as { code?: string }).code === PG_UNIQUE_VIOLATION) continue;
+        throw err;
+      }
+    }
+
+    throw new ConflictException(
+      'Could not find a free web address for that name. Try a slightly different one.',
+    );
   }
 
   async update(tenantId: string, venueId: string, dto: UpdateVenueDto) {
-    await this.get(tenantId, venueId);
+    const existing = await this.get(tenantId, venueId);
     if (dto.timezone) this.assertValidTimezone(dto.timezone);
-    const [venue] = await this.db
-      .update(venues)
-      .set(dto)
-      .where(and(eq(venues.tenantId, tenantId), eq(venues.id, venueId)))
-      .returning();
-    return venue;
+
+    // Publishing a venue with no courts would give the public an empty page and
+    // a bad first impression of the venue, not of us.
+    if (dto.isPublished && !existing.isPublished) {
+      const courts = await this.listResources(tenantId, venueId);
+      if (courts.length === 0) {
+        throw new BadRequestException('Add at least one court before publishing this venue.');
+      }
+    }
+
+    try {
+      const [venue] = await this.db
+        .update(venues)
+        .set(dto)
+        .where(and(eq(venues.tenantId, tenantId), eq(venues.id, venueId)))
+        .returning();
+      return venue;
+    } catch (err) {
+      if ((err as { code?: string }).code === PG_UNIQUE_VIOLATION) {
+        throw new ConflictException('That web address is already taken. Try another.');
+      }
+      throw err;
+    }
   }
 
   // ---------------------------------------------------------- resources --

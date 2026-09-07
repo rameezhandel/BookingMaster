@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  Max,
   IsIn,
   IsInt,
   IsOptional,
@@ -25,6 +26,17 @@ export class UpdateVenueDto {
   @IsOptional() @IsString() @MaxLength(64) timezone?: string;
   @IsOptional() @IsString() @MaxLength(500) address?: string;
   @IsOptional() @IsString() @MaxLength(32) phone?: string;
+
+  @IsOptional()
+  @Matches(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
+    message: 'The web address may use lowercase letters, numbers and hyphens only.',
+  })
+  @MaxLength(60)
+  slug?: string;
+
+  @IsOptional() @IsBoolean() isPublished?: boolean;
+  @IsOptional() @IsInt() @Min(1) @Max(365) @Type(() => Number) bookingWindowDays?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(10080) @Type(() => Number) minNoticeMinutes?: number;
 }
 
 export class CreateResourceDto {

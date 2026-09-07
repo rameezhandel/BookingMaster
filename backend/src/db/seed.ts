@@ -66,6 +66,8 @@ async function main() {
         timezone: TZ,
         address: '27th Main, HSR Layout Sector 2, Bengaluru 560102',
         phone: '+919876500000',
+        slug: 'smash-arena-hsr',
+        isPublished: true,
       })
       .returning();
 
@@ -271,7 +273,8 @@ async function main() {
     console.log(`  venue    ${venue.name}`);
     console.log(`  courts   ${courts.length}`);
     console.log(`  closed   ${holiday.toISODate()} (Diwali), turf open 18:00-23:00`);
-    console.log(`  login    ${DEMO_EMAIL} / ${DEMO_PASSWORD}\n`);
+    console.log(`  login    ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+    console.log(`  public   /v/${venue.slug}\n`);
   } finally {
     await pool.end();
   }

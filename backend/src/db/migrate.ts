@@ -25,6 +25,12 @@ async function main() {
   await client.connect();
 
   try {
+    // Migrations are cross-tenant by nature: a data backfill touches every
+    // tenant's rows at once. Without this they run under row-level security
+    // with no tenant set, which fails closed — the DDL succeeds, the UPDATE
+    // quietly matches nothing, and the migration reports success.
+    await client.query(`SET app.bypass_rls = 'on'`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migration (
         filename   text PRIMARY KEY,
