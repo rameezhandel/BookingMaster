@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BlockModal } from '../components/BlockModal';
 import { BookingDetailModal } from '../components/BookingDetailModal';
 import { FirstRun } from '../components/FirstRun';
@@ -9,6 +9,45 @@ import { get } from '../lib/api';
 import { dayLabel, fullDate, rupees, shiftDate, todayIn } from '../lib/format';
 import type { CalendarDay, Slot, WeekDay } from '../lib/types';
 import { useVenue } from '../lib/venue';
+
+/**
+ * Tracks which way a scroller can still go.
+ *
+ * A grid that is cut off at the edge with nothing to say so reads as a broken
+ * layout rather than as a scrollable one — especially at the right edge, where
+ * a half-drawn column looks like a rendering bug. Re-measured on scroll, on
+ * resize, and whenever the contents change, because the number of courts and
+ * the length of the day both move it.
+ */
+function useEdgeScroll(deps: unknown[]) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setEdges({ left: el.scrollLeft > 1, right: max > 1 && el.scrollLeft < max - 1 });
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = ref.current;
+    if (!el) return;
+    el.addEventListener('scroll', measure, { passive: true });
+    // Courts can be added, and the day's length changes with opening hours.
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      observer.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measure, ...deps]);
+
+  return { ref, ...edges };
+}
 
 export function CalendarPage() {
   const { venue: activeVenue, isLoading: venuesLoading } = useVenue();
@@ -39,6 +78,9 @@ export function CalendarPage() {
     }
     return [...byStart.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [data]);
+
+  const courtCount = data?.courts.length ?? 0;
+  const scroll = useEdgeScroll([courtCount, rows.length]);
 
   const slotIndex = useMemo(() => {
     const index = new Map<string, Map<string, Slot>>();
@@ -135,7 +177,18 @@ export function CalendarPage() {
 
       {error && <div className="msg error">{(error as Error).message}</div>}
 
-      <div className="grid-scroll">
+      {/* The fade lives on a wrapper, not on the scroller: a pseudo-element
+          inside an overflow container scrolls away with the content. */}
+      <div className={`grid-wrap ${scroll.right ? 'has-more' : ''}`.trim()}>
+      <div
+        className={`grid-scroll ${scroll.left ? 'is-scrolled' : ''}`.trim()}
+        ref={scroll.ref}
+        // Focusable so the grid can be scrolled from the keyboard; without this
+        // a court off the right edge is unreachable without a mouse.
+        tabIndex={0}
+        role="region"
+        aria-label={`Bookings for ${courtCount} court${courtCount === 1 ? '' : 's'}`}
+      >
         <table className="grid">
           <thead>
             <tr>
@@ -187,6 +240,7 @@ export function CalendarPage() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
 
       {data && data.courts.length > 0 && data.courts.every((c) => c.closed) && (
