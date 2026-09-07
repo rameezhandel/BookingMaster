@@ -1,0 +1,46 @@
+# Local stack. `docker compose up db` for just Postgres while developing with
+# `npm run dev`, or `docker compose --profile app up --build` to run the whole
+# thing the way it runs in production.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bookingmaster-db
+    environment:
+      POSTGRES_USER: bookingmaster
+      POSTGRES_PASSWORD: bookingmaster
+      POSTGRES_DB: bookingmaster
+    ports:
+      - "5432:5432"
+    volumes:
+      - bookingmaster-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookingmaster"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookingmaster-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgres://bookingmaster:bookingmaster@db:5432/bookingmaster
+      # Local only. In production this is a generated secret, and the app
+      # refuses to start if it is short or left at the example value.
+      JWT_SECRET: local-development-secret-at-least-32-chars
+      MIGRATE_ON_BOOT: "true"
+      SEED_ON_BOOT: "true"
+      # No proxy in front locally, so do not trust forwarded IPs.
+      TRUST_PROXY: "false"
+    ports:
+      - "3000:3000"
+
+volumes:
+  bookingmaster-pgdata:

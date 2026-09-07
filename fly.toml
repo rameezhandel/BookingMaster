@@ -1,0 +1,39 @@
+# Fly.io config. First run:
+#   fly launch --no-deploy
+#   fly postgres create --name bookingmaster-db --region bom
+#   fly postgres attach bookingmaster-db          # sets DATABASE_URL
+#   fly secrets set JWT_SECRET=$(openssl rand -hex 32)
+#   fly deploy
+
+app = "bookingmaster"
+primary_region = "bom"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  # Runs once per deploy on a temporary machine, so replicas never race the DDL.
+  release_command = "node backend/dist/db/migrate.js"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  TRUST_PROXY = "true"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/health/ready"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
