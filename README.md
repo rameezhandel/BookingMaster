@@ -41,23 +41,42 @@ Node 20+ and Postgres 16+.
 git clone https://github.com/rameezhandel/BookingMaster.git
 cd BookingMaster
 
+cp .env.example .env                    # host ports — edit if any clash
+cp backend/.env.example backend/.env    # then set JWT_SECRET
+
 docker compose up -d db                 # or point at your own Postgres
-cp backend/.env.example backend/.env    # set DATABASE_URL and JWT_SECRET
 
 npm install
 npm run migrate
 npm run seed                            # optional demo venue, courts and bookings
-npm run dev                             # API on :3000, web on :5173
+npm run dev                             # API on :3010, web on :5183
 ```
 
-Open <http://localhost:5173>. With the seed, sign in as `owner@smasharena.test` /
+Open <http://localhost:5183>. With the seed, sign in as `owner@smasharena.test` /
 `bookingmaster`; otherwise sign up and the first-run screen creates your venue.
 
 The migration runs `CREATE EXTENSION btree_gist`, so the database must allow it.
 
+### Ports
+
+Defaults are deliberately not 5432, 3000 and 5173 — those are the first ports
+every other project takes, and this is rarely the only thing you have running.
+All three live in `.env` at the repository root:
+
+| | Default | Change it in |
+| --- | --- | --- |
+| Postgres | `5442` | `DB_PORT`, and the port in `backend/.env`'s `DATABASE_URL` |
+| API | `3010` | `API_PORT` |
+| Web (Vite) | `5183` | `WEB_PORT` |
+
+Only the *host* side moves. Inside Docker and inside the app the ports are
+fixed, so nothing else has to be kept in step.
+
+If something still refuses to bind, `lsof -i :5442` names what already has it.
+
 ## Configuration
 
-`backend/.env`, from [`.env.example`](backend/.env.example).
+`backend/.env`, from [`backend/.env.example`](backend/.env.example). Host ports live separately in the root [`.env`](.env.example) — see [Ports](#ports).
 
 | Variable | Required | Notes |
 | --- | --- | --- |
