@@ -1,4 +1,5 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import { useAuth } from './lib/auth';
 import { VenueProvider, VenueSwitcher } from './lib/venue';
 import { LoginPage } from './pages/LoginPage';
@@ -12,8 +13,28 @@ import { PublicVenuePage } from './public/PublicVenuePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 
+/**
+ * Keeps the current page's tab visible in the nav.
+ *
+ * On a phone the nav is a scrolling strip that cannot show all seven at once,
+ * so after navigating — or on a cold load of a deep link — the tab you are on
+ * can sit off-screen, and the strip reads as though nothing is selected.
+ */
+function useNavFollowsRoute() {
+  const nav = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const active = nav.current?.querySelector('a.active');
+    active?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  }, [pathname]);
+
+  return nav;
+}
+
 export default function App() {
   const { me, loading, logout } = useAuth();
+  const navRef = useNavFollowsRoute();
   const isPublic = location.pathname.startsWith('/v/');
 
   // Taking up an invitation happens before there is an account to gate on.
@@ -61,7 +82,7 @@ export default function App() {
         <div className="brand">
           Booking<span>Master</span>
         </div>
-        <nav className="nav">
+        <nav className="nav" ref={navRef}>
           <NavLink to="/calendar" className={({ isActive }) => (isActive ? 'active' : '')}>
             Calendar
           </NavLink>

@@ -166,6 +166,7 @@ label { display: block; font-size: 12px; font-weight: 600; color: var(--text-dim
 
 .cal-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .date-nav { display: flex; align-items: center; gap: 6px; }
+.date-nav .date-input { width: 150px; }
 .date-title { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
 .date-sub { color: var(--text-faint); font-size: 12px; }
 
@@ -373,10 +374,108 @@ table.list .num { text-align: right; font-variant-numeric: tabular-nums; }
 }
 .suggestions button:last-child { border-bottom: none; }
 
-@media (max-width: 640px) {
+/* ----------------------------------------------------------- a phone -- */
+
+/*
+ * The console is used standing at a desk with a phone in one hand, which is
+ * where the day actually happens. It was only ever laid out at 1440px: the nav
+ * ran 570px wide in a 390px viewport, so Reports, Activity and Settings were
+ * off-screen and untappable, and the whole page panned sideways.
+ */
+@media (max-width: 700px) {
   .page { padding: 12px; }
-  .topbar { padding: 10px 12px; gap: 10px; }
-  .stat { min-width: 96px; flex: 1; }
+
+  /* Brand and account on the first row, the nav as its own strip below. */
+  .topbar { padding: 8px 12px; gap: 10px; row-gap: 4px; }
+  .topbar-right { gap: 8px; }
+  .who {
+    font-size: 12px; max-width: 42vw;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Which venue you are looking at matters on a small screen; your own name
+     does not — you know who you are. */
+  .who .faint { display: none; }
+
+  .nav {
+    order: 3; width: 100%; gap: 4px;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Full-bleed, so the last item can scroll clear of the edge rather than
+       hiding under it. */
+    margin: 0 -12px; padding: 2px 12px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a {
+    flex: 0 0 auto; display: flex; align-items: center;
+    min-height: 40px; padding: 0 12px; font-size: 14px;
+  }
+
+  /* Thumbs, not cursors. */
+  button, .btn { min-height: 40px; }
+  button.sm, .btn.sm { min-height: 34px; }
+  /* Under 16px, iOS Safari zooms the page when a field takes focus and never
+     zooms back — the rest of the form is then off-screen. */
+  input, select, textarea { min-height: 40px; font-size: 16px; }
+
+  .field-row { flex-direction: column; gap: 0; }
+
+  /* Three stats across one row: they are the answer to "how is today going",
+     which should not need scrolling past. */
+  .stats { gap: 6px; }
+  .stat { flex: 1 1 0; min-width: 0; padding: 8px 9px; }
+  .stat .k { font-size: 10px; letter-spacing: 0.02em; }
+  .stat .v { font-size: 16px; }
+
+  /*
+   * The header was 507px of a 844px screen before the calendar started, so the
+   * thing the page is for began below the fold. Title and the block button
+   * share a row, the date controls take the next one.
+   */
+  .cal-head { gap: 8px; row-gap: 8px; margin-bottom: 10px; }
+  .cal-head .spacer { display: none; }
+  .cal-head > div:first-child { flex: 1 1 auto; order: 1; }
+  .cal-head > button { order: 2; }
+  .cal-head .date-nav { order: 3; flex: 1 1 100%; }
+  .cal-head .date-nav .date-input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .date-title { font-size: 16px; }
+  .weekstrip { margin-bottom: 10px; }
+
+  /* Seven days across one row instead of wrapping onto two. */
+  .weekstrip { gap: 3px; }
+  .weekstrip button { flex: 1 1 0; min-width: 0; padding: 6px 2px; }
+
+  /*
+   * Tables scroll inside themselves instead of panning the page, and say so.
+   *
+   * The two `local` layers scroll with the content and the two `scroll` layers
+   * do not, so each shadow is covered by its own background exactly when that
+   * end is reached. No wrapper element and no scroll listener — which matters
+   * across eleven tables that would otherwise each need one.
+   */
+  table.list {
+    display: block; overflow-x: auto; white-space: nowrap;
+    background:
+      linear-gradient(to right, var(--surface) 40%, transparent) left center / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 40%, transparent) right center / 32px 100% no-repeat local,
+      linear-gradient(to right, rgba(10, 14, 20, 0.13), transparent) left center / 14px 100% no-repeat scroll,
+      linear-gradient(to left, rgba(10, 14, 20, 0.13), transparent) right center / 14px 100% no-repeat scroll;
+  }
+  table.list td, table.list th { padding: 10px; background: var(--surface); }
+  table.list tbody tr:hover td { background: var(--surface-2); }
+
+  /* Once you have scrolled to it, the grid should be most of the screen. */
+  .grid-scroll { max-height: calc(100vh - 150px); }
+  table.grid th:not(.time-col), table.grid td:not(.time-col) { min-width: 124px; }
+
+  /* Modals become sheets: anchored to the bottom, within reach of a thumb. */
+  .backdrop { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: none; max-height: 92vh;
+    border-radius: 12px 12px 0 0;
+    display: flex; flex-direction: column;
+  }
+  .modal-body { overflow-y: auto; }
+  .modal-foot { flex-wrap: wrap; }
 }
 
 /* ------------------------------------------------- closed / hours -- */

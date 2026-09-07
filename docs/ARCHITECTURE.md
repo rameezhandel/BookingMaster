@@ -373,6 +373,38 @@ opt out with an explicit `app.bypass_rls`, which is a deliberate act rather than
 the accident of a missing setting — and the nightly job goes further, adopting
 each tenant in turn so its work stays subject to the same policies.
 
+## The console has to work on a phone
+
+The public page was built phone-first. The console was not — it was only ever
+laid out at 1440px, and at 390px the nav ran 570px wide, so Reports, Activity
+and Settings were off the right edge and untappable while the whole page panned
+sideways. The person the console is for is standing at a desk with a phone in
+one hand.
+
+Three rules, applied below 700px:
+
+- **Nothing pans the page.** Anything wider than the screen — the nav, every
+  table, the calendar grid — scrolls inside its own box instead. A page that
+  slides sideways loses the fixed left edge that makes a list readable.
+- **A scroller says it is one.** The tables use scrolling shadows made of four
+  background layers, two that scroll with the content and two that do not, so
+  each shadow is covered exactly when its end is reached. That is CSS with no
+  wrapper element and no scroll listener, which matters across eleven tables
+  that would otherwise each need both.
+- **Thumbs, not cursors.** Controls get a 40px minimum, and fields get a 16px
+  font — under that, iOS Safari zooms the page on focus and does not zoom back,
+  putting the rest of the form off-screen.
+
+Modals become bottom sheets, anchored where a thumb can reach and capped at 92%
+of the screen with the body scrolling inside, so the confirm button is never
+below the fold.
+
+The calendar header was the other half of it: 507px of an 844px screen went on
+the date, the week strip and the day's totals before the grid began, so the
+thing the page exists for started below the fold. Rearranged to 366px — the
+title shares its row with the block button, the seven days fit one row, and the
+three totals fit another.
+
 ## The token is not trusted about who you are
 
 Every venue used to have exactly one login, so a manager and three desk staff
@@ -509,12 +541,9 @@ The venue should connect **their own** Razorpay account. Pooling funds and payin
 out makes you a payment facilitator, with float, reconciliation and chargebacks
 attached. Be software first.
 
-**Next.** The owner console on a phone — the public page was built phone-first,
-but the console's calendar, tables and modals are still desktop-shaped, and an
-owner standing at the desk is holding a phone. Then GST invoicing with a gapless
-per-tenant sequence, delivery receipts back from WhatsApp (`delivered` and
-`read` are already statuses on the row, waiting for the status webhook to set
-them), and an owner's daily digest.
+**Next.** GST invoicing with a gapless per-tenant sequence, delivery receipts
+back from WhatsApp (`delivered` and `read` are already statuses on the row,
+waiting for the status webhook to set them), and an owner's daily digest.
 
 **Later — halls.** Wedding and function halls sell a *date*, not an hour, and the
 booking is a CRM pipeline — enquiry, site visit, quote, advance — before it is
