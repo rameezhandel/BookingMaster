@@ -26,7 +26,7 @@ const WHAT: Record<string, string> = {
  * first question when someone does not turn up, and without this the honest
  * answer is that nobody knows.
  */
-export function MessagesCard({ venue }: { venue: Venue }) {
+export function MessagesCard({ venue, canEdit = true }: { venue: Venue; canEdit?: boolean }) {
   const qc = useQueryClient();
   const [reminderHours, setReminderHours] = useState(venue.reminderHoursBefore);
 
@@ -54,12 +54,14 @@ export function MessagesCard({ venue }: { venue: Venue }) {
         <span className={`pill ${venue.notificationsEnabled ? 'confirmed' : 'cancelled'}`}>
           {venue.notificationsEnabled ? 'on' : 'off'}
         </span>
-        <button
-          onClick={() => save.mutate({ notificationsEnabled: !venue.notificationsEnabled })}
-          disabled={save.isPending}
-        >
-          {venue.notificationsEnabled ? 'Turn off' : 'Turn on'}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => save.mutate({ notificationsEnabled: !venue.notificationsEnabled })}
+            disabled={save.isPending}
+          >
+            {venue.notificationsEnabled ? 'Turn off' : 'Turn on'}
+          </button>
+        )}
       </div>
 
       <div className="card-body">
@@ -77,6 +79,7 @@ export function MessagesCard({ venue }: { venue: Venue }) {
           </p>
         )}
 
+        {canEdit && (
         <div className="field" style={{ maxWidth: 260 }}>
           <label htmlFor="msg-reminder">Reminder (hours before the slot)</label>
           <input
@@ -93,6 +96,7 @@ export function MessagesCard({ venue }: { venue: Venue }) {
           />
           <div className="hint">Zero sends no reminders.</div>
         </div>
+        )}
 
         {failed > 0 && (
           <div className="msg error">

@@ -403,10 +403,27 @@ guard is one somebody forgets to add to the route they wrote on a Friday, and
 the hole that leaves is invisible until it is exploited.
 
 **Staff may do anything the day needs**; the owner-only list is short and is
-about the *business* rather than the day: revenue, prices, opening hours, what
-the public sees, the activity log, and who else has a login. A permission model
-that gets in the way at the counter is worked around by sharing the owner's
-login, which is the problem this exists to solve.
+about the *business* rather than the day: revenue, prices, weekly opening hours,
+what the public sees, the activity log, and who else has a login. A permission
+model that gets in the way at the counter is worked around by sharing the
+owner's login, which is the problem this exists to solve.
+
+The line between the two is recurring policy versus a one-off exception. Weekly
+opening hours are the owner's; a closure for a flooded turf is not, because the
+person who knows about the flood is standing at the desk and the owner is not
+there. Staff can already block a court for rain, so allowing that but not a
+venue-wide closure would only teach people to borrow the owner's password.
+
+The split is written down as a list in `test/permissions.test.ts` and checked
+against what the controllers declare, in both directions: a route that gained
+the decorator by sitting next to owner-only ones fails the test, and so does an
+owner-only route that lost it. Permissions drift silently otherwise — the
+symptom is a person at a desk, months later, unable to do their job.
+
+That test also asserts the reverse of a bug this had: the settings screen must
+not *offer* staff a control that only ever fails for them. Every card that
+writes to an owner-only route is rendered behind an owner check, and staff see
+the closures card and the message log instead of five forms that 403 on save.
 
 People are deactivated, never deleted — their bookings, payments and audit
 entries all point at them, and removing the row would either take that history

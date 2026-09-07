@@ -15,6 +15,16 @@ export class HoursController {
     return this.hours.list(user.tenantId, id);
   }
 
+  /*
+   * Weekly hours are configuration and stay with the owner; a one-off closure
+   * below does not.
+   *
+   * "The turf is flooded, we are shut this evening" is something the person at
+   * the desk knows and the owner, who is not there, does not. Staff can already
+   * block a court for rain — a venue-wide closure is the same act at a
+   * different size, and allowing one but not the other only teaches people to
+   * borrow the owner's login.
+   */
   @OwnerOnly()
   @Put('resources/:id/hours')
   replace(
@@ -34,7 +44,6 @@ export class HoursController {
     return this.hours.listOverrides(user.tenantId, id, query);
   }
 
-  @OwnerOnly()
   @Post('venues/:id/overrides')
   createOverride(
     @CurrentUser() user: AuthUser,
@@ -44,7 +53,6 @@ export class HoursController {
     return this.hours.createOverride(user.tenantId, id, dto);
   }
 
-  @OwnerOnly()
   @Delete('overrides/:id')
   removeOverride(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.hours.removeOverride(user.tenantId, id);

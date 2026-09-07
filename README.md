@@ -26,9 +26,9 @@ CONSTRAINT reservation_no_overlap EXCLUDE USING gist (
 - Staff logins with roles — invite by email, and switch someone off the day they leave
 - Append-only activity log
 
-Staff can take bookings, record payments and handle customers. Owners can also
-see revenue, change prices and opening hours, publish the booking page, and
-manage who has a login.
+Staff run the day: bookings, payments, customers, and closing a court or the
+whole venue when the turf floods. Owners also see revenue, set prices and weekly
+opening hours, publish the booking page, and manage who has a login.
 
 **Public booking page** at `/v/<slug>`, no account needed
 
@@ -114,8 +114,10 @@ The ones worth knowing about:
   on, so the shape of the fix is not refactored away.
 - **Webhook signatures** — verified over raw bytes; re-serialising the JSON
   reorders keys and stops matching.
-- **Staff and permissions** — single-use invitations under a deliberate race,
-  and the guards that stop an account being left with no active owner.
+- **Staff and permissions** — the owner/staff split as a list, checked against
+  what the controllers declare so it cannot drift; single-use invitations under
+  a deliberate race; and the guards that stop an account being left with no
+  active owner.
 - **Notifications** — deduplication, opt-out, claim-once delivery and backoff.
 
 ## Deploying
