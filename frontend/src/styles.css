@@ -190,8 +190,40 @@ label { display: block; font-size: 12px; font-weight: 600; color: var(--text-dim
 
 /* ------------------------------------------------------- calendar grid -- */
 
-.grid-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+/*
+ * The grid is its own scrolling pane, in both directions.
+ *
+ * `overflow-x` forces `overflow-y` to compute as `auto` too, so the sticky
+ * header's scroll container is this element rather than the page. Without a
+ * height it never scrolls vertically, which means `position: sticky` on the
+ * header did nothing at all: on a seventeen-hour day you scrolled down and lost
+ * the court names. Bounding the height makes both sticky edges real — the court
+ * you are looking at stays named, and the time stays visible as you scroll
+ * across.
+ */
+.grid-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 320px);
+  min-height: 280px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--surface);
+  /* Scrolling to a court should not tuck it under the sticky time column. */
+  scroll-padding-left: 66px;
+}
 table.grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+
+/*
+ * A floor under every court column, so the table overflows rather than
+ * squeezing.
+ *
+ * `width: 100%` alone makes the table fit the container no matter how many
+ * courts there are — at thirteen courts each one is 78px, the names truncate to
+ * nothing, and the horizontal scroll never engages because there is nothing to
+ * scroll. A venue with a lot of courts is exactly the one that needs the
+ * calendar to be readable.
+ */
+table.grid th:not(.time-col),
+table.grid td:not(.time-col) { min-width: 132px; }
 
 table.grid th {
   position: sticky; top: 0; z-index: 5;
@@ -203,6 +235,25 @@ table.grid th.time-col, table.grid td.time-col {
   width: 66px; min-width: 66px;
   position: sticky; left: 0; z-index: 6;
   background: var(--surface); border-right: 1px solid var(--border);
+}
+/* Where the two frozen edges meet, above both. */
+table.grid th.time-col { z-index: 7; }
+
+/* A fade at the right edge while there are still courts past it. */
+.grid-wrap { position: relative; }
+.grid-wrap::after {
+  content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
+  pointer-events: none; opacity: 0; transition: opacity 120ms ease;
+  background: linear-gradient(to right, transparent, var(--surface));
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.grid-wrap.has-more::after { opacity: 1; }
+.grid-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A hint that the frozen column has content hidden behind it. */
+.grid-scroll.is-scrolled table.grid th.time-col,
+.grid-scroll.is-scrolled table.grid td.time-col {
+  box-shadow: 6px 0 8px -6px rgba(10, 14, 20, 0.28);
 }
 table.grid td.time-col {
   font-family: var(--mono); font-size: 12px; color: var(--text-dim);
