@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "description": "Booking platform for sports venues: an owner console and a public self-serve booking page.",
-  "workspaces": ["backend", "frontend"],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
     "dev:api": "npm run dev --workspace=backend",
@@ -11,7 +14,15 @@
     "migrate": "npm run migrate --workspace=backend",
     "seed": "npm run seed --workspace=backend",
     "test": "npm run test --workspace=backend",
-    "build": "npm run build --workspace=backend && npm run build --workspace=frontend"
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e:serve": "npm run migrate && npm run seed && PORT=${E2E_PORT:-3100} NODE_ENV=test node backend/dist/main.js > e2e/.server.log 2>&1",
+    "typecheck": "tsc --noEmit -p backend/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p e2e/tsconfig.json"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
 }

@@ -8,3 +8,6 @@ build/
 coverage/
 .vite/
 *.tsbuildinfo
+e2e/.server.log
+e2e/test-results/
+e2e/playwright-report/

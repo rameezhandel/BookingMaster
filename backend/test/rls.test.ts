@@ -5,9 +5,7 @@
  * for the one that eventually forgets, because that mistake leaks another
  * venue's customers and revenue.
  *
- * Requires DATABASE_URL and a migrated database. Note that a superuser bypasses
- * row-level security entirely, so these tests only mean something when the
- * application role is not one — which is exactly the deployment requirement.
+ * Requires DATABASE_URL and a migrated database.
  */
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -57,6 +55,32 @@ after(async () => {
   if (alpha) await pool.query('DELETE FROM tenant WHERE id = $1', [alpha]);
   if (beta) await pool.query('DELETE FROM tenant WHERE id = $1', [beta]);
   await pool.end();
+});
+
+/*
+ * The precondition, asserted rather than written in a comment.
+ *
+ * A superuser, or any role with BYPASSRLS, ignores every policy silently. Every
+ * test below would then pass while proving nothing — and a default `postgres`
+ * container hands you exactly such a role, so this is the likely state of a
+ * fresh continuous-integration run rather than an exotic one. A green suite
+ * that cannot fail is worse than no suite: it is a claim of isolation nobody
+ * has checked.
+ */
+describe('the precondition these tests rest on', () => {
+  it('connects as a role that row-level security actually applies to', async () => {
+    const { rows } = await pool.query<{ rolname: string; rolsuper: boolean; rolbypassrls: boolean }>(
+      'SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user',
+    );
+    const role = rows[0];
+    assert.equal(
+      role.rolsuper || role.rolbypassrls,
+      false,
+      `Connected as "${role?.rolname}", which ${role?.rolsuper ? 'is a superuser' : 'has BYPASSRLS'}. ` +
+        'Every isolation test below would pass without proving anything. Point DATABASE_URL at ' +
+        'the unprivileged role the application uses in production.',
+    );
+  });
 });
 
 describe('tenant isolation', () => {

@@ -487,6 +487,36 @@ Stored as `timestamptz` in UTC; every venue carries an IANA timezone and all slo
 maths happens in venue-local time. India has no DST so this buys nothing today —
 but a second market would otherwise be a migration rather than a config change.
 
+## What the end-to-end tests are for
+
+Three of this product's claims cannot be checked from a unit test, because they
+are about two things happening at once or about the browser being wrong.
+
+**Two people cannot take the same slot.** A database test proves the exclusion
+constraint holds. It cannot show that the loser is *told* — that the conflict
+arrives as words a person can act on rather than a blank failure, or worse, a
+second booking that looks like it worked. That needs two browsers.
+
+**The webhook decides that money arrived.** The only way to demonstrate this is
+to confirm a booking without the browser ever learning the payment succeeded,
+which is exactly what the test does: it starts the payment, then posts a signed
+webhook out of band and waits for the page to catch up on its own.
+
+**A control that is shown must work.** The permission bug that reached a user
+was not a missing check — it was five settings cards offering staff work the
+server would refuse. The test watches for any 401 or 403 while a staff member
+uses the screens they are given, and fails if one appears.
+
+These were all verified by hand, repeatedly, with scripts that were thrown away
+each time. Rewriting them per change is not a test suite; it is a habit that
+only holds while somebody remembers.
+
+Continuous integration runs them on every pull request, connecting as an
+unprivileged role. A superuser ignores row-level security silently, so the
+isolation tests would pass while proving nothing — and the default `postgres`
+container hands you exactly such a role. `rls.test.ts` asserts the precondition
+rather than describing it in a comment.
+
 ## Layout
 
 ```
@@ -523,6 +553,8 @@ frontend/
 Dockerfile           multi-stage; the web bundle is baked in and served by the API
 render.yaml          Render blueprint, migrations as a pre-deploy step
 fly.toml             Fly config, migrations as a release_command
+e2e/                 Playwright specs against the built app on a real database
+.github/workflows/   typecheck, tests and end-to-end on every pull request
 ```
 
 ## Roadmap
