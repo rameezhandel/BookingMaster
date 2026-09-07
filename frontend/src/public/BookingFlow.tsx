@@ -21,7 +21,7 @@ interface Hold {
   end: string;
 }
 
-type Step = 'phone' | 'code' | 'confirm' | 'done';
+type Step = 'phone' | 'code' | 'confirm' | 'paying' | 'done';
 
 /**
  * Booking, for someone who is not signed in and does not want an account.
@@ -55,6 +55,8 @@ export function BookingFlow({
   const [token, setToken] = useState('');
   const [hold, setHold] = useState<Hold | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [payment, setPayment] = useState<{ orderId: string; gateway: string } | null>(null);
+  const [payMessage, setPayMessage] = useState<string | null>(null);
 
   const when = `${DateTime.fromISO(slot.start, { zone: timezone }).toFormat('ccc d LLL, HH:mm')}–${DateTime.fromISO(slot.end, { zone: timezone }).toFormat('HH:mm')}`;
 
@@ -114,6 +116,60 @@ export function BookingFlow({
     onSuccess: () => setStep('done'),
   });
 
+  const startPayment = useMutation({
+    mutationFn: () =>
+      api<{ orderId: string; gateway: string; publicKey: string | null }>(
+        `/public/holds/${hold!.id}/payment`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({}) },
+      ),
+    onSuccess: (res) => {
+      setPayment({ orderId: res.orderId, gateway: res.gateway });
+      setStep('paying');
+    },
+  });
+
+  /**
+   * Waits for the gateway's webhook rather than trusting the browser.
+   *
+   * The checkout's own success callback is a hint: it can arrive before the
+   * webhook, after it, or not at all if the customer closes the tab. The
+   * booking is confirmed when our server says so.
+   */
+  useEffect(() => {
+    if (step !== 'paying' || !hold) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const status = await api<{ bookingStatus: string; paymentStatus: string | null; refundReason: string | null }>(
+          `/public/holds/${hold.id}/payment`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (cancelled) return;
+        if (status.bookingStatus === 'confirmed') {
+          setStep('done');
+        } else if (status.paymentStatus === 'refunded') {
+          setPayMessage(
+            status.refundReason
+              ? `Payment refunded: ${status.refundReason.toLowerCase()}.`
+              : 'That payment was refunded.',
+          );
+        } else if (status.paymentStatus === 'failed') {
+          setPayMessage('That payment did not go through.');
+        }
+      } catch {
+        /* keep polling; a blip is not a failure */
+      }
+    };
+
+    void poll();
+    const timer = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [step, hold, token]);
+
   function release() {
     if (hold && token) {
       void api(`/public/holds/${hold.id}`, {
@@ -124,7 +180,7 @@ export function BookingFlow({
     onClose();
   }
 
-  const error = [requestCode.error, verify.error, confirm.error].find(
+  const error = [requestCode.error, verify.error, confirm.error, startPayment.error].find(
     (e) => e instanceof ApiError,
   ) as ApiError | undefined;
 
@@ -226,27 +282,53 @@ export function BookingFlow({
 
           {step === 'confirm' && hold && (
             <>
-              {hold.requiresPrepayment ? (
-                <div className="msg error">
-                  This venue takes payment online, which is not set up yet. Please call them to
-                  finish this booking.
-                </div>
-              ) : (
-                <p className="muted">
-                  Pay {rupees(hold.amountPaise)} at the venue. Your slot is confirmed as soon as you
-                  book.
-                </p>
-              )}
+              <p className="muted">
+                {hold.requiresPrepayment
+                  ? `Pay ${rupees(hold.amountPaise)} now to confirm this slot.`
+                  : `Pay ${rupees(hold.amountPaise)} at the venue. Your slot is confirmed as soon as you book.`}
+              </p>
               <button
                 className="primary"
                 style={{ width: '100%', padding: 10 }}
-                disabled={confirm.isPending || expired || hold.requiresPrepayment}
-                onClick={() => confirm.mutate()}
+                disabled={confirm.isPending || startPayment.isPending || expired}
+                onClick={() => (hold.requiresPrepayment ? startPayment.mutate() : confirm.mutate())}
               >
-                {confirm.isPending ? 'Booking…' : 'Confirm booking'}
+                {confirm.isPending || startPayment.isPending
+                  ? 'One moment…'
+                  : hold.requiresPrepayment
+                    ? `Pay ${rupees(hold.amountPaise)}`
+                    : 'Confirm booking'}
               </button>
               <button className="ghost sm" style={{ width: '100%', marginTop: 8 }} onClick={release}>
                 Give up this slot
+              </button>
+            </>
+          )}
+
+          {step === 'paying' && payment && (
+            <>
+              {payMessage ? (
+                <div className="msg error">{payMessage}</div>
+              ) : (
+                <p className="muted">
+                  Waiting for your payment to clear. This confirms itself — you can leave this page
+                  open.
+                </p>
+              )}
+              <div className="field">
+                <label>Payment reference</label>
+                <div className="mono faint" style={{ fontSize: 12 }}>
+                  {payment.orderId}
+                </div>
+              </div>
+              {payment.gateway === 'stub' && (
+                <div className="msg info">
+                  No payment provider is configured, so no checkout will open and no money will
+                  move. This is a placeholder for the real gateway.
+                </div>
+              )}
+              <button className="ghost sm" style={{ width: '100%' }} onClick={release}>
+                Cancel
               </button>
             </>
           )}

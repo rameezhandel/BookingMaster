@@ -8,6 +8,8 @@ export interface Venue {
   isPublished: boolean;
   bookingWindowDays: number;
   minNoticeMinutes: number;
+  holdMinutes: number;
+  requiresPrepayment: boolean;
 }
 
 export interface Court {

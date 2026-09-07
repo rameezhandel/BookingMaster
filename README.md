@@ -320,6 +320,43 @@ would authenticate against the entire owner console.
 code to the log and says so loudly in production rather than failing silently.
 `OtpSender` is the interface to implement.
 
+### The webhook decides that money arrived, not the browser
+
+A customer closes the tab, loses signal, or never comes back from the payment
+page. The gateway's webhook still arrives, so that is what confirms a booking.
+The browser polls our own status endpoint rather than trusting its own success
+callback, which can land before the webhook, after it, or not at all.
+
+- **Signatures are checked against the raw bytes**, before the body is parsed or
+  stored. Re-serialising parsed JSON reorders keys and changes whitespace, and
+  the signature stops matching — this is the single most common way webhook
+  verification gets quietly disabled. There is a test that fails if anyone
+  "helpfully" switches to the parsed body.
+- **Idempotency is a unique index** on `(gateway, event_id)`, and the event row
+  is inserted *before* it is acted on. Gateways retry on timeouts and on any
+  non-2xx; without this a retry confirms a booking twice and records the money
+  twice. Insert-and-catch beats check-then-act, which is a race.
+- **A late payment is refunded automatically.** If the hold expired and was
+  swept, or the slot went to someone else, the money goes back. Leaving it is the
+  one outcome nobody forgives. A refund that itself fails is logged at error
+  level with everything needed to do it by hand.
+- **A short payment is refunded, not accepted.** The amount is compared against
+  what we asked the gateway for, never against anything the browser said. An
+  overpayment still confirms — refusing would be worse for the customer — but it
+  is logged and recorded in the audit trail, because the difference is owed back
+  and only a person can decide how.
+
+**The Razorpay adapter has never spoken to the live API.** The environment this
+was built in has no outbound access to Razorpay and no credentials, so the order
+and refund calls are written from the documented API and are unverified. Run a
+pass against test keys before taking real money.
+
+Everything around them *is* exercised, because the stub gateway signs webhooks
+with the same HMAC-SHA256-over-raw-body scheme. It is not a mock: signature
+verification, replay rejection, idempotency, confirmation, and the late-refund
+path all run against real code. In production the stub refuses to work at all —
+a stub that silently accepts money is worse than no payments.
+
 ### Tenant isolation is enforced by the database
 
 Every tenant-owned row carries `tenant_id` and every service takes it as an
@@ -389,6 +426,7 @@ backend/
     reports/         billed, collected, outstanding
     audit/           append-only record of who did what
     public/          venue page, availability, holds, OTP identity
+    payments/        the ledger, plus checkout and the payment gateway
   test/              unit tests plus the concurrency proof
 frontend/
   src/

@@ -133,6 +133,21 @@ export function PublishCard({ venue }: { venue: Venue }) {
           </div>
         </div>
 
+        <div className="field" style={{ marginTop: 4 }}>
+          <label className="checkline">
+            <input
+              type="checkbox"
+              checked={venue.requiresPrepayment}
+              onChange={(e) => save.mutate({ requiresPrepayment: e.target.checked })}
+            />
+            <span>Take payment online before confirming</span>
+          </label>
+          <div className="hint">
+            Off means players book online and pay at the court. On requires a payment provider to be
+            configured on the server.
+          </div>
+        </div>
+
         <div className="hint">
           You can always book anything from the calendar yourself. These limits apply only to the
           public page.

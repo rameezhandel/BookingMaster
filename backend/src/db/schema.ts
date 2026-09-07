@@ -273,10 +273,54 @@ export const payments = pgTable(
     reference: text('reference'),
     note: text('note'),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    paymentIntentId: uuid('payment_intent_id'),
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ reservationIdx: index('payment_reservation_idx').on(t.reservationId) }),
+);
+
+/** Our record of an attempt to collect money, tied to the gateway's order. */
+export const paymentIntents = pgTable(
+  'payment_intent',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    reservationId: uuid('reservation_id'),
+    gateway: text('gateway').notNull(),
+    gatewayOrderId: text('gateway_order_id').notNull(),
+    gatewayPaymentId: text('gateway_payment_id'),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    currency: text('currency').notNull().default('INR'),
+    status: text('status')
+      .$type<'created' | 'paid' | 'failed' | 'abandoned' | 'refunded'>()
+      .notNull()
+      .default('created'),
+    refundReason: text('refund_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ reservationIdx: index('payment_intent_reservation_idx').on(t.reservationId) }),
+);
+
+/**
+ * Every webhook accepted, stored before it is acted on. The unique key on
+ * (gateway, event_id) is the idempotency mechanism.
+ */
+export const gatewayEvents = pgTable(
+  'gateway_event',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    gateway: text('gateway').notNull(),
+    eventId: text('event_id').notNull(),
+    eventType: text('event_type').notNull(),
+    payload: jsonb('payload').notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    error: text('error'),
+  },
+  (t) => ({ unprocessedIdx: index('gateway_event_unprocessed_idx').on(t.receivedAt) }),
 );
 
 /** Statuses that occupy a court, matching the partial exclusion constraint. */

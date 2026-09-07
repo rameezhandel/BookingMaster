@@ -37,6 +37,8 @@ export class UpdateVenueDto {
   @IsOptional() @IsBoolean() isPublished?: boolean;
   @IsOptional() @IsInt() @Min(1) @Max(365) @Type(() => Number) bookingWindowDays?: number;
   @IsOptional() @IsInt() @Min(0) @Max(10080) @Type(() => Number) minNoticeMinutes?: number;
+  @IsOptional() @IsInt() @Min(2) @Max(60) @Type(() => Number) holdMinutes?: number;
+  @IsOptional() @IsBoolean() requiresPrepayment?: boolean;
 }
 
 export class CreateResourceDto {

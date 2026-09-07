@@ -10,7 +10,9 @@ import { requestIdMiddleware } from './common/request-id.middleware';
 import { isTrue } from './config/env.validation';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody keeps the exact bytes of the request around, which webhook
+  // signature verification depends on.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const logger = new Logger('Bootstrap');
 
   app.setGlobalPrefix('api', { exclude: ['health', 'health/ready'] });
