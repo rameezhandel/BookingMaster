@@ -83,7 +83,7 @@ export function ReportsPage() {
                       <strong>{c.name}</strong>
                     </td>
                     <td style={{ textTransform: 'capitalize' }} className="faint">
-                      {c.sport}
+                      {c.sport ?? 'hall'}
                     </td>
                     <td className="num mono">{c.bookings}</td>
                     <td className="num mono">{(c.bookedMinutes / 60).toFixed(1)}</td>

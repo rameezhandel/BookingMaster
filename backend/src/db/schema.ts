@@ -144,7 +144,10 @@ export const resources = pgTable(
     tenantId: uuid('tenant_id').notNull(),
     venueId: uuid('venue_id').notNull(),
     name: text('name').notNull(),
-    sport: text('sport').notNull(),
+    /** Booked by the hour, or by the day. */
+    kind: text('kind').$type<'court' | 'hall'>().notNull().default('court'),
+    /** Meaningless for a banquet hall, so optional rather than overloaded. */
+    sport: text('sport'),
     slotMinutes: integer('slot_minutes').notNull().default(60),
     // Opening hours live in resourceHourRules; a court can keep different hours
     // on each weekday and more than one window per day.
@@ -246,6 +249,12 @@ export const reservations = pgTable(
     kind: text('kind').$type<'booking' | 'block'>().notNull(),
     status: text('status').$type<ReservationStatus>().notNull(),
     during: tstzrange('during').notNull(),
+    /**
+     * The event itself, where it is narrower than the span the hall is held
+     * for — the decorator wants it the evening before. Null for courts, where
+     * the two are the same thing.
+     */
+    eventDuring: tstzrange('event_during'),
     customerId: uuid('customer_id'),
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull().default(0),
     notes: text('notes'),
@@ -515,4 +524,53 @@ export const invoices = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ tenantIdx: index('invoice_tenant_idx').on(t.tenantId, t.issuedAt) }),
+);
+
+/**
+ * An enquiry about a hall.
+ *
+ * Not a reservation, and touching no constraint: an enquiry must not block the
+ * date. Owners let several families consider the same November Saturday and
+ * take whoever commits first — blocking on enquiry would either cost them
+ * bookings or teach them to lie to the system. Only a tentative hold blocks.
+ */
+export const enquiries = pgTable(
+  'enquiry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    /** Which hall, once they have decided. Early on they often have not. */
+    resourceId: uuid('resource_id'),
+    customerId: uuid('customer_id'),
+
+    contactName: text('contact_name').notNull(),
+    contactPhone: text('contact_phone').notNull(),
+    contactEmail: text('contact_email'),
+
+    /** Free text: every venue has its own vocabulary for this. */
+    eventType: text('event_type'),
+    /** Null while it is still "sometime in November". */
+    eventDate: date('event_date'),
+    guestCount: integer('guest_count'),
+
+    status: text('status')
+      .$type<'new' | 'visit_scheduled' | 'quoted' | 'won' | 'lost'>()
+      .notNull()
+      .default('new'),
+    visitAt: timestamp('visit_at', { withTimezone: true }),
+    quotedPaise: bigint('quoted_paise', { mode: 'number' }),
+    lostReason: text('lost_reason'),
+
+    /** Set when it becomes a hold or a booking. */
+    reservationId: uuid('reservation_id'),
+
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tenantIdx: index('enquiry_tenant_idx').on(t.tenantId, t.createdAt),
+    venueStatusIdx: index('enquiry_venue_status_idx').on(t.venueId, t.status),
+  }),
 );

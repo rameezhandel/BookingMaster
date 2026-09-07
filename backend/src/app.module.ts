@@ -9,6 +9,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { StaffModule } from './staff/staff.module';
 import { InvoicingModule } from './invoicing/invoicing.module';
+import { HallsModule } from './halls/halls.module';
 import { AuthModule } from './auth/auth.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { CalendarModule } from './calendar/calendar.module';
@@ -73,6 +74,7 @@ function webApp(): DynamicModule[] {
     AuditModule,
     StaffModule,
     InvoicingModule,
+    HallsModule,
     NotificationsModule,
     HealthModule,
     AuthModule,

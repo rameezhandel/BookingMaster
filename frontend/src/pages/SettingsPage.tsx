@@ -235,10 +235,10 @@ function CourtsCard({ venue }: { venue: Venue }) {
     <>
       <div className="card">
         <div className="card-head">
-          <h2>Courts</h2>
+          <h2>Courts and halls</h2>
           <span className="spacer" />
           <button className="primary sm" onClick={() => setAdding(true)}>
-            Add court
+            Add
           </button>
         </div>
 
@@ -263,11 +263,16 @@ function CourtsCard({ venue }: { venue: Venue }) {
               <tr key={court.id}>
                 <td>
                   <strong>{court.name}</strong>
+                  {court.kind === 'hall' && (
+                    <span className="pill" style={{ marginLeft: 8 }}>
+                      hall
+                    </span>
+                  )}
                 </td>
                 <td className="faint" style={{ textTransform: 'capitalize' }}>
-                  {court.sport}
+                  {court.sport ?? '—'}
                 </td>
-                <td className="mono">{court.slotMinutes}m</td>
+                <td className="mono">{court.kind === 'hall' ? '—' : `${court.slotMinutes}m`}</td>
                 <td>
                   <span className={`pill ${court.isActive ? 'confirmed' : 'cancelled'}`}>
                     {court.isActive ? 'active' : 'inactive'}
@@ -275,12 +280,18 @@ function CourtsCard({ venue }: { venue: Venue }) {
                 </td>
                 <td className="num">
                   <div className="row" style={{ justifyContent: 'flex-end' }}>
-                    <button className="sm" onClick={() => setHoursFor(court)}>
-                      Hours
-                    </button>
-                    <button className="sm" onClick={() => setPricingFor(court)}>
-                      Pricing
-                    </button>
+                    {/* Neither means anything for a hall: it has no slot grid to
+                        open and no per-hour rate to set. */}
+                    {court.kind !== 'hall' && (
+                      <>
+                        <button className="sm" onClick={() => setHoursFor(court)}>
+                          Hours
+                        </button>
+                        <button className="sm" onClick={() => setPricingFor(court)}>
+                          Pricing
+                        </button>
+                      </>
+                    )}
                     <button
                       className="sm"
                       onClick={() => update.mutate({ id: court.id, body: { isActive: !court.isActive } })}
@@ -307,6 +318,7 @@ function CourtsCard({ venue }: { venue: Venue }) {
 
 function AddCourtModal({ venue, onClose }: { venue: Venue; onClose: () => void }) {
   const qc = useQueryClient();
+  const [kind, setKind] = useState<'court' | 'hall'>('court');
   const [form, setForm] = useState({
     name: '',
     sport: 'badminton',
@@ -316,9 +328,17 @@ function AddCourtModal({ venue, onClose }: { venue: Venue; onClose: () => void }
   });
 
   const create = useMutation({
-    mutationFn: () => post(`/venues/${venue.id}/resources`, form),
+    mutationFn: () =>
+      post(
+        `/venues/${venue.id}/resources`,
+        // A hall has no sport, no slot length and no opening hours: events run
+        // to their own schedule. Sending them anyway would store settings that
+        // nothing reads and that an owner would reasonably expect to matter.
+        kind === 'hall' ? { kind, name: form.name } : form,
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['courts', venue.id] });
+      qc.invalidateQueries({ queryKey: ['halls', venue.id] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       onClose();
     },
@@ -326,7 +346,7 @@ function AddCourtModal({ venue, onClose }: { venue: Venue; onClose: () => void }
 
   return (
     <Modal
-      title="Add court"
+      title={kind === 'hall' ? 'Add hall' : 'Add court'}
       onClose={onClose}
       footer={
         <>
@@ -339,10 +359,32 @@ function AddCourtModal({ venue, onClose }: { venue: Venue; onClose: () => void }
       }
     >
       {create.error instanceof ApiError && <div className="msg error">{create.error.message}</div>}
-      <div className="field">
-        <label htmlFor="c-name">Name</label>
-        <input id="c-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Court 4" />
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="c-kind">What is it?</label>
+          <select id="c-kind" value={kind} onChange={(e) => setKind(e.target.value as 'court' | 'hall')}>
+            <option value="court">Court — booked by the hour</option>
+            <option value="hall">Hall — booked by the event</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="c-name">Name</label>
+          <input
+            id="c-name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder={kind === 'hall' ? 'Banquet Hall' : 'Court 4'}
+          />
+        </div>
       </div>
+      {kind === 'hall' ? (
+        <div className="hint">
+          A hall has no slot grid and no opening hours — a reception running to one in the morning
+          is normal. Enquiries, held dates and bookings for it live on the Halls page. This cannot
+          be changed afterwards, because its bookings would have nowhere to go.
+        </div>
+      ) : (
+      <>
       <div className="field-row">
         <div className="field">
           <label htmlFor="c-sport">Sport</label>
@@ -377,6 +419,8 @@ function AddCourtModal({ venue, onClose }: { venue: Venue; onClose: () => void }
         These hours apply to every day to start with. Refine them per day, including midday
         closures, with the Hours button afterwards.
       </div>
+      </>
+      )}
     </Modal>
   );
 }

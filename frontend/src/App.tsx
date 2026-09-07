@@ -1,7 +1,10 @@
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './lib/auth';
-import { VenueProvider, VenueSwitcher } from './lib/venue';
+import { get } from './lib/api';
+import { VenueProvider, VenueSwitcher, useVenue } from './lib/venue';
+import type { Court } from './lib/types';
 import { LoginPage } from './pages/LoginPage';
 import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { CalendarPage } from './pages/CalendarPage';
@@ -11,6 +14,7 @@ import { SeriesPage } from './pages/SeriesPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { PublicVenuePage } from './public/PublicVenuePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HallsPage } from './pages/HallsPage';
 import { ReportsPage } from './pages/ReportsPage';
 
 /**
@@ -95,6 +99,7 @@ export default function App() {
           <NavLink to="/customers" className={({ isActive }) => (isActive ? 'active' : '')}>
             Customers
           </NavLink>
+          <HallsNavLink />
           {isOwner && (
             <>
               <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -127,6 +132,7 @@ export default function App() {
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/series" element={<SeriesPage />} />
           <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/halls" element={<HallsPage />} />
           {/* Hidden from staff in the nav, and refused by the server either way —
               this stops a typed URL rendering a page that can only error. */}
           {isOwner && <Route path="/reports" element={<ReportsPage />} />}
@@ -137,5 +143,28 @@ export default function App() {
       </main>
     </div>
     </VenueProvider>
+  );
+}
+
+/**
+ * The Halls tab, shown only to venues that have a hall.
+ *
+ * Most venues are courts and nothing else, and a permanently empty tab is worse
+ * than no tab. The route itself stays registered either way — the page explains
+ * how to add a hall rather than bouncing a typed URL somewhere else.
+ */
+function HallsNavLink() {
+  const { venue } = useVenue();
+  const { data: halls } = useQuery({
+    queryKey: ['halls', venue?.id],
+    queryFn: () => get<Court[]>(`/venues/${venue!.id}/resources?kind=hall`),
+    enabled: !!venue,
+  });
+
+  if (!halls?.length) return null;
+  return (
+    <NavLink to="/halls" className={({ isActive }) => (isActive ? 'active' : '')}>
+      Halls
+    </NavLink>
   );
 }

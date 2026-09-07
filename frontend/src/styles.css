@@ -341,6 +341,15 @@ table.list .num { text-align: right; font-variant-numeric: tabular-nums; }
 .pill.no_show { background: var(--held); border-color: var(--held-border); color: var(--warn); }
 .pill.blocked { background: var(--blocked); border-color: var(--blocked-border); }
 
+/* Hall enquiries. The pipeline reads left to right: an untouched enquiry is the
+   one that costs a booking, so it is the one that stands out. */
+.pill.new { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.pill.visit_scheduled { background: var(--surface-2); color: var(--text-dim); }
+.pill.quoted { background: var(--held); border-color: var(--held-border); color: var(--warn); }
+.pill.held { background: var(--held); border-color: var(--held-border); color: var(--warn); }
+.pill.won { background: var(--booked); border-color: var(--booked-border); color: var(--booked-text); }
+.pill.lost { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+
 /* -------------------------------------------------------------- misc -- */
 
 .msg { padding: 9px 12px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 14px; }
