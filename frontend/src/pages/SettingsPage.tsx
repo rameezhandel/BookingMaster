@@ -34,19 +34,33 @@ export function SettingsPage() {
         <span className="faint" style={{ fontSize: 13 }}>
           {venues.length > 1
             ? `${venues.length} venues — switch with the picker in the top bar`
-            : 'Settings apply to this venue'}
+            : isOwner
+              ? 'Settings apply to this venue'
+              : 'Closures and the message log for this venue'}
         </span>
         <span className="spacer" />
         {isOwner && <button onClick={() => setAddingVenue(true)}>Add another venue</button>}
       </div>
 
-      <VenueCard key={venue.id} venue={venue} />
-      <PublishCard key={`publish-${venue.id}`} venue={venue} />
-      <CourtsCard venue={venue} />
+      {isOwner && <VenueCard key={venue.id} venue={venue} />}
+      {isOwner && <PublishCard key={`publish-${venue.id}`} venue={venue} />}
+      {isOwner && <CourtsCard venue={venue} />}
+
+      {/* Closures are the one thing here that belongs to the day rather than to
+          the business, so they are the one thing staff can change. */}
       <ClosuresCard venue={venue} courts={courts ?? []} />
-      <CancellationPolicyCard key={`policy-${venue.id}`} venue={venue} />
-      <MessagesCard key={`messages-${venue.id}`} venue={venue} />
+
+      {isOwner && <CancellationPolicyCard key={`policy-${venue.id}`} venue={venue} />}
+      <MessagesCard key={`messages-${venue.id}`} venue={venue} canEdit={isOwner} />
       {isOwner && <TeamCard />}
+
+      {!isOwner && (
+        <p className="muted">
+          Prices, opening hours, courts and the public booking page are set by an
+          account owner. Closures are here because whoever is at the desk is the one
+          who knows.
+        </p>
+      )}
 
       {addingVenue && <AddVenueModal onClose={() => setAddingVenue(false)} />}
     </div>
