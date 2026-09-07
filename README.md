@@ -30,6 +30,9 @@ Staff run the day: bookings, payments, customers, and closing a court or the
 whole venue when the turf floods. Owners also see revenue, set prices and weekly
 opening hours, publish the booking page, and manage who has a login.
 
+Both the console and the booking page work on a phone — the console is what a
+venue owner uses standing at the desk, not sitting at a laptop.
+
 **Public booking page** at `/v/<slug>`, no account needed
 
 - Live availability and the price on each slot

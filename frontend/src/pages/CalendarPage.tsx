@@ -120,10 +120,10 @@ export function CalendarPage() {
             →
           </button>
           <input
+            className="date-input"
             type="date"
             value={date}
             onChange={(e) => e.target.value && setDate(e.target.value)}
-            style={{ width: 150 }}
           />
         </div>
 
