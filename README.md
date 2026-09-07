@@ -23,6 +23,7 @@ CONSTRAINT reservation_no_overlap EXCLUDE USING gist (
 - Payments in cash, UPI, card or bank transfer — part payments and refunds included
 - Tiered cancellation policy, customer history, revenue reports
 - WhatsApp confirmations, cancellations and reminders, with a log of what was sent
+- GST tax invoices with an unbroken number series, and credit notes for refunds
 - Staff logins with roles — invite by email, and switch someone off the day they leave
 - Append-only activity log
 
@@ -105,8 +106,8 @@ startup and refuses to boot in production if it can bypass.
 ## Tests
 
 ```bash
-npm test        # 154 unit and database tests; needs DATABASE_URL
-npm run e2e     # 7 end-to-end tests, against the built app in a real browser
+npm test        # 179 unit and database tests; needs DATABASE_URL
+npm run e2e     # 8 end-to-end tests, against the built app in a real browser
 npm run typecheck
 ```
 
@@ -130,6 +131,9 @@ The ones worth knowing about:
   a deliberate race; and the guards that stop an account being left with no
   active owner.
 - **Notifications** — deduplication, opt-out, claim-once delivery and backoff.
+- **GST** — the tax split reconciles to the paisa at every amount and rate, and
+  the invoice series survives ten simultaneous issues and a rollback with no
+  gap.
 
 And end-to-end, in a browser against the built app:
 

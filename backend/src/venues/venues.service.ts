@@ -6,6 +6,7 @@ import { OCCUPYING_STATUSES, reservations, resourceHourRules, resources, venues 
 import { timeToMinutes } from '../common/time';
 import { PG_UNIQUE_VIOLATION } from '../common/errors';
 import { slugCandidates } from './slug';
+import { stateCodeOfGstin } from '../invoicing/gst';
 import type { CreateResourceDto, CreateVenueDto, UpdateResourceDto, UpdateVenueDto } from './dto';
 
 @Injectable()
@@ -76,10 +77,16 @@ export class VenuesService {
       }
     }
 
+    // The state a GSTIN belongs to is its first two digits, and the whole tax
+    // split turns on it. Derived here rather than asked for, so it cannot
+    // disagree with the number it came from.
+    const derived =
+      dto.gstin !== undefined ? { stateCode: stateCodeOfGstin(dto.gstin) ?? null } : {};
+
     try {
       const [venue] = await this.db
         .update(venues)
-        .set(dto)
+        .set({ ...dto, ...derived })
         .where(and(eq(venues.tenantId, tenantId), eq(venues.id, venueId)))
         .returning();
       return venue;

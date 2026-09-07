@@ -44,6 +44,13 @@ const OWNER_ONLY = [
   'DELETE resources/:id',
   'PUT resources/:id/hours',
 
+  // Tax documents: statements about the business's money, in its name, that
+  // cannot be taken back once issued.
+  'GET venues/:id/invoices',
+  'GET invoices/:id',
+  'POST reservations/:id/invoice',
+  'POST invoices/:id/credit-note',
+
   // Who else can sign in.
   'GET staff',
   'GET staff/invites',
@@ -69,6 +76,7 @@ const MUST_STAY_OPEN = [
   'PATCH customers/:id',
   'POST series',
   'GET venues/:id/messages',
+  'GET reservations/:id/invoices',
 ];
 
 /** Reads the routes a controller declares, and which are marked owner-only. */
@@ -161,7 +169,7 @@ describe('the owner/staff split', () => {
       'utf8',
     );
     // The cards that write to owner-only routes must be rendered behind isOwner.
-    for (const card of ['VenueCard', 'PublishCard', 'CourtsCard', 'CancellationPolicyCard', 'TeamCard']) {
+    for (const card of ['VenueCard', 'PublishCard', 'CourtsCard', 'CancellationPolicyCard', 'TaxCard', 'TeamCard']) {
       const rendered = new RegExp(`\\{isOwner && <${card}\\b|isOwner \\? <${card}\\b`);
       assert.match(
         settings,

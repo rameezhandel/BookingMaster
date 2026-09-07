@@ -3,9 +3,12 @@ import { DateTime } from 'luxon';
 import { useState } from 'react';
 import { ApiError, del, get, patch, post } from '../lib/api';
 import { paiseFromRupeeInput, rangeIn, rupees } from '../lib/format';
-import type { Payment } from '../lib/types';
+import type { Invoice, Payment } from '../lib/types';
 import { CancelBookingPanel } from './CancelBookingPanel';
 import { Modal } from './Modal';
+import { InvoiceView } from './InvoiceView';
+import { useVenue } from '../lib/venue';
+import { useAuth } from '../lib/auth';
 
 interface Props {
   reservationId: string;
@@ -246,6 +249,8 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
             </div>
           )}
 
+          <InvoiceSection reservationId={reservationId} />
+
           {active && (
             <div className="row wrap" style={{ marginTop: 4 }}>
               {data.status === 'confirmed' && (
@@ -268,5 +273,107 @@ export function BookingDetailModal({ reservationId, timezone, onClose }: Props) 
         </>
       )}
     </Modal>
+  );
+}
+
+/**
+ * The tax invoice for this booking, if the venue issues them.
+ *
+ * Issued on request rather than automatically: a customer asks for a bill at
+ * the counter, and invoicing every booking would produce documents for the ones
+ * that get cancelled — each of which then needs a credit note to undo.
+ */
+function InvoiceSection({ reservationId }: { reservationId: string }) {
+  const qc = useQueryClient();
+  const { venue } = useVenue();
+  const { me } = useAuth();
+  const [showing, setShowing] = useState<Invoice | null>(null);
+  const [gstin, setGstin] = useState('');
+  const [asking, setAsking] = useState(false);
+
+  const { data: issued } = useQuery({
+    queryKey: ['invoices', reservationId],
+    queryFn: () => get<Invoice[]>(`/reservations/${reservationId}/invoices`),
+  });
+
+  const issue = useMutation({
+    mutationFn: () =>
+      post<Invoice>(`/reservations/${reservationId}/invoice`, {
+        ...(gstin.trim() ? { customerGstin: gstin.trim().toUpperCase() } : {}),
+      }),
+    onSuccess: (invoice) => {
+      setAsking(false);
+      setGstin('');
+      qc.invalidateQueries({ queryKey: ['invoices', reservationId] });
+      setShowing(invoice);
+    },
+  });
+
+  // Nothing to say when the venue does not issue invoices and none exists.
+  if (!venue?.invoicingEnabled && !issued?.length) return null;
+
+  return (
+    <div className="field">
+      <label>Tax invoice</label>
+
+      {issue.error instanceof ApiError && <div className="msg error">{issue.error.message}</div>}
+
+      {issued?.length ? (
+        <table className="list">
+          <tbody>
+            {issued.map((inv) => (
+              <tr key={inv.id}>
+                <td className="mono">{inv.number}</td>
+                <td className="faint">{inv.kind === 'credit_note' ? 'Credit note' : 'Invoice'}</td>
+                <td className="num mono">{rupees(inv.totalPaise)}</td>
+                <td className="num">
+                  <button className="ghost sm" onClick={() => setShowing(inv)}>
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : asking ? (
+        <>
+          <input
+            id="inv-gstin"
+            value={gstin}
+            onChange={(e) => setGstin(e.target.value.toUpperCase())}
+            placeholder="Customer GSTIN (optional)"
+            maxLength={15}
+          />
+          <div className="hint">
+            Only needed if a business is claiming credit. Leave blank for a walk-in.
+          </div>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="primary sm" disabled={issue.isPending} onClick={() => issue.mutate()}>
+              {issue.isPending ? 'Issuing…' : 'Issue invoice'}
+            </button>
+            <button className="ghost sm" onClick={() => setAsking(false)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        me?.role === 'owner' && (
+          <button className="sm" onClick={() => setAsking(true)}>
+            Issue a tax invoice
+          </button>
+        )
+      )}
+
+      {showing && (
+        <Modal title={showing.number} onClose={() => setShowing(null)}>
+          <InvoiceView invoice={showing} />
+          <div className="row" style={{ marginTop: 16 }}>
+            <button className="sm" onClick={() => window.print()}>
+              Print or save as PDF
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }
