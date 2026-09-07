@@ -26,12 +26,38 @@ want the control.
 Latency is unlikely to be why a venue does not sign up. A lost database would
 be. Start on Render.
 
-Do not use a free tier for the public booking page: the ones that sleep make a
-customer wait through a cold start on the link the venue just shared with them.
+## Free tiers, and what stops working on one
+
+A sleeping free tier is a fine way to prove a deploy works. Sign in, book a
+slot, take a payment, issue an invoice — all of it behaves. Use one for that.
+
+What it will not do is run the clock. Everything in the next section stops while
+the instance is asleep, so on a free tier:
+
+- queued WhatsApp messages sit there until something wakes the instance
+- expired holds are never swept, so slots stay blocked after their timer runs out
+- the reminder before a booking never fires
+- the 3am and 4am jobs never happen at all
+
+None of that is broken. If you test the notification flow on a sleeping instance
+and nothing arrives, that is the tier, not the code — which is worth knowing
+before spending an evening on it.
+
+Two other things about Render's free tier specifically. Waking takes something
+like 30 to 60 seconds, which is long enough that a first request reads as the
+site being down. And its free Postgres has had an expiry window after which the
+database is removed — check the current terms before putting anything in it you
+would mind losing.
+
+**Move to a paid plan the day you show it to a venue owner.** That is a plan
+change rather than a migration. Note that the blueprint asks for `starter`, so
+choosing free means overriding it in the dashboard — remember that, or a later
+blueprint re-apply will quietly put you back on paid.
 
 ## One instance must always be running
 
-This is not a web service that can scale to zero. Six jobs need a live process:
+Once real bookings depend on it, this is not a web service that can scale to
+zero. Six jobs need a live process:
 
 | | |
 | --- | --- |
