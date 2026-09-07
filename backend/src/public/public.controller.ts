@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentCustomer, CustomerAuthGuard, type CustomerUser } from './customer-auth';
-import { CancelOwnBookingDto, CreateHoldDto, RequestOtpDto, VerifyOtpDto } from './dto';
+import { CancelOwnBookingDto, CreateHoldDto, MessagePreferencesDto, RequestOtpDto, VerifyOtpDto } from './dto';
 import { PublicBookingService } from './public-booking.service';
 import { PublicService } from './public.service';
 
@@ -68,6 +68,16 @@ export class PublicBookingController {
   @Get('my/bookings')
   mine(@CurrentCustomer() user: CustomerUser) {
     return this.booking.mine(user);
+  }
+
+  @Get('my/preferences')
+  preferences(@CurrentCustomer() user: CustomerUser) {
+    return this.booking.messagePreferences(user);
+  }
+
+  @Patch('my/preferences')
+  setPreferences(@CurrentCustomer() user: CustomerUser, @Body() dto: MessagePreferencesDto) {
+    return this.booking.setMessagePreferences(user, dto.optedOut);
   }
 
   /** What the venue's policy would refund, shown before anything is cancelled. */

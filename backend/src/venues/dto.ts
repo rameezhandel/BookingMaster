@@ -39,6 +39,10 @@ export class UpdateVenueDto {
   @IsOptional() @IsInt() @Min(0) @Max(10080) @Type(() => Number) minNoticeMinutes?: number;
   @IsOptional() @IsInt() @Min(2) @Max(60) @Type(() => Number) holdMinutes?: number;
   @IsOptional() @IsBoolean() requiresPrepayment?: boolean;
+
+  @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
+  /** Hours before the start a reminder goes out. Zero turns reminders off. */
+  @IsOptional() @IsInt() @Min(0) @Max(72) @Type(() => Number) reminderHoursBefore?: number;
 }
 
 export class CreateResourceDto {

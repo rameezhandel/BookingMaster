@@ -9,6 +9,7 @@ import { HoursService } from '../availability/hours.service';
 import { isWithinOpening, openingFor } from '../availability/resolve';
 import { PricingService } from '../pricing/pricing.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class HoldsService {
@@ -19,6 +20,7 @@ export class HoldsService {
     private readonly hours: HoursService,
     private readonly pricing: PricingService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -251,6 +253,12 @@ export class HoldsService {
       entityId: confirmed.id,
       summary: 'Booked online, paying at the venue',
       data: { amountPaise: Number(confirmed.amountPaise), source: 'public' },
+    });
+
+    await this.notifications.enqueue({
+      tenantId,
+      reservationId: confirmed.id,
+      templateKey: 'booking_confirmed',
     });
 
     return confirmed;

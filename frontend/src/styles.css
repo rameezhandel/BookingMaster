@@ -424,3 +424,7 @@ button.pub-slot.free:hover { border-color: var(--accent); }
   background: var(--surface-2);
 }
 .cancel-box p { font-size: 13px; }
+
+/* The message opt-out under a player's own bookings. */
+.msg-pref { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.msg-pref .hint { margin-top: 5px; }

@@ -10,6 +10,23 @@ export interface Venue {
   minNoticeMinutes: number;
   holdMinutes: number;
   requiresPrepayment: boolean;
+  notificationsEnabled: boolean;
+  reminderHoursBefore: number;
+}
+
+/** One message in the venue's outbox, as the owner sees it. */
+export interface CustomerMessage {
+  id: string;
+  template: string;
+  preview: string;
+  toPhone: string;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
+  attempts: number;
+  error: string | null;
+  provider: string | null;
+  createdAt: string;
+  sentAt: string | null;
+  customerName: string | null;
 }
 
 export interface Court {
@@ -109,6 +126,7 @@ export interface Customer {
   name: string;
   phone: string;
   notes: string | null;
+  notificationsOptedOut: boolean;
 }
 
 export interface BookingRow {

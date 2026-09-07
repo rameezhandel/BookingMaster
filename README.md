@@ -22,10 +22,18 @@ other way round.
 - Mark bookings played or no-show
 - Customer list with booking history — "is this a regular?"
 - Revenue report: billed, collected, outstanding, and a breakdown per court
+- WhatsApp confirmations, cancellations and reminders, with a log of what went
+  out and to whom
 
-**Not here yet, on purpose:** public booking page, online payments, holds and
-expiry, notifications, recurring bookings, discovery, mobile apps. Those are
-phase 1 and beyond. See [Roadmap](#roadmap).
+**Player** (the venue's public page, no account)
+- See what is free today and for the next week, with the price on each slot
+- Confirm a mobile number with a code, book, and hold the slot while doing it
+- Pay online where the venue asks for it, or at the court where it does not
+- See their own bookings, cancel one, and read the refund *before* committing
+- Turn the messages off
+
+**Not here yet, on purpose:** discovery and search across venues, mobile apps,
+GST invoicing, and the halls vertical. See [Roadmap](#roadmap).
 
 ## Running it
 
@@ -385,6 +393,55 @@ exist, so ids cannot be probed. The session is short-lived, scoped to one venue,
 and kept in `sessionStorage` rather than `localStorage` — these pages get opened
 on shared and borrowed phones, so closing the tab should end it.
 
+### Messages are queued in the same transaction as the booking
+
+Sending inside the request is wrong three ways, and all three bite:
+
+- The call to WhatsApp is slow and holds a database connection for its duration.
+- If the send succeeds and the transaction then rolls back, a customer has been
+  told about a booking that does not exist.
+- If the transaction commits and the send throws, the message is gone with
+  nothing to retry from.
+
+So the message is a row, written by the same transaction that writes the
+booking — atomic with the thing it describes — and a worker sends it a moment
+later. A failed send is still on the table with its attempt count, waiting.
+Retries back off 1, 5 then 25 minutes and then stop; a provider that will never
+accept the message (a bad number, an unapproved template) is failed on the first
+answer rather than retried three more times.
+
+A worker claims a row with a conditional `UPDATE ... WHERE attempts = $seen`
+before calling the provider. Claiming after sending, or not at all, is how
+customers get told twice.
+
+Deduplication is a unique index on `(tenant_id, dedupe_key)` and an
+insert-and-catch, not a check-then-insert: two webhook retries arriving together
+would both pass the check and both send.
+
+Three reasons to say nothing, checked in one place rather than at each call site
+so none of them can be forgotten: the venue has messaging off, the customer
+asked not to be messaged, or there is no phone number. The customer can set that
+themselves from their own bookings — an opt-out that means "phone the venue and
+ask" is not really an opt-out.
+
+**The wording has to match what happened.** A customer cancelling online is
+cancelled *first* and refunded second, so the slot goes back on sale without
+waiting on the gateway. That means the message cannot be queued by the cancel
+itself: it would go out before the refund outcome is known. So that path
+suppresses the standard message and queues its own once the refund has been
+attempted — "₹500 has been refunded to your original payment method" when it
+went through, and "a refund of ₹500 is due" when it did not. Telling someone
+money is on its way when it is not is worse than saying nothing.
+
+**Not verified against Meta.** The Cloud API client is written to the documented
+contract but has never been run against a real account, and WhatsApp template
+approval takes days. `npm run templates` prints each template ready to paste into
+WhatsApp Manager; the body text there must match `src/notifications/templates.ts`
+exactly or the send is rejected. With no provider configured, messages are
+written to the log — and in production that is logged as an error rather than
+passing quietly, because a notification system that pretends to work is worse
+than one that is obviously off.
+
 ### Tenant isolation is enforced by the database
 
 Every tenant-owned row carries `tenant_id` and every service takes it as an
@@ -455,6 +512,7 @@ backend/
     audit/           append-only record of who did what
     public/          venue page, availability, holds, OTP identity
     payments/        the ledger, plus checkout and the payment gateway
+    notifications/   the message outbox, templates and the sending worker
   test/              unit tests plus the concurrency proof
 frontend/
   src/
@@ -468,18 +526,23 @@ fly.toml             Fly config, migrations as a release_command
 
 ## Roadmap
 
-**Phase 1 — the public booking page.** Where the hard parts live, and none of
-them exist yet because no stranger pays online today: a `held` status with an
-expiry and a sweeper, phone-OTP identity, Razorpay with the *webhook* as the
-source of truth (HMAC over the raw body, event id stored for idempotency), and
-the auto-refund path for a payment that lands after its hold expired.
+**Done — the public booking page and the money.** A `held` status with an expiry
+and a sweeper, phone-OTP identity, Razorpay with the *webhook* as the source of
+truth (HMAC over the raw body, event id stored for idempotency), the auto-refund
+path for a payment that lands after its hold expired, self-service cancellation,
+and the message outbox.
+
+Still to do before any of that is really live: run the Razorpay and WhatsApp
+integrations against real accounts. Both are written to the documented contract
+and neither has ever spoken to the outside world.
 
 The venue should connect **their own** Razorpay account. Pooling funds and paying
 out makes you a payment facilitator, with float, reconciliation and chargebacks
 attached. Be software first.
 
-**Phase 2.** WhatsApp confirmations (template approval takes days — start early),
-GST invoicing with a gapless per-tenant sequence.
+**Next.** GST invoicing with a gapless per-tenant sequence, delivery receipts
+back from WhatsApp (`delivered` and `read` are already statuses on the row,
+waiting for the status webhook to set them), and an owner's daily digest.
 
 **Later — halls.** Wedding and function halls sell a *date*, not an hour, and the
 booking is a CRM pipeline — enquiry, site visit, quote, advance — before it is

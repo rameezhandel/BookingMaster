@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CancellationPolicyCard } from '../components/CancellationPolicyCard';
+import { MessagesCard } from '../components/MessagesCard';
 import { ClosuresCard } from '../components/ClosuresCard';
 import { PublishCard } from '../components/PublishCard';
 import { HoursModal } from '../components/HoursModal';
@@ -40,6 +41,7 @@ export function SettingsPage() {
       <CourtsCard venue={venue} />
       <ClosuresCard venue={venue} courts={courts ?? []} />
       <CancellationPolicyCard key={`policy-${venue.id}`} venue={venue} />
+      <MessagesCard key={`messages-${venue.id}`} venue={venue} />
 
       {addingVenue && <AddVenueModal onClose={() => setAddingVenue(false)} />}
     </div>

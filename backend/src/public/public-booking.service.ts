@@ -6,9 +6,11 @@ import { DB, type Db } from '../db/database.module';
 import { runAsTenant } from '../db/run-as-tenant';
 import { customers, payments as paymentsTable, reservations, resources, venues } from '../db/schema';
 import { CUSTOMER_TOKEN_TTL, type CustomerPayload, type CustomerUser } from './customer-auth';
+import { formatPaise } from '../common/money';
 import { paidTotals, toPaise } from '../common/paid-totals';
 import { ReservationsService } from '../reservations/reservations.service';
 import { CheckoutService } from '../payments/checkout.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { HoldsService } from './holds.service';
 import { OtpService } from './otp/otp.service';
 import { PublicService } from './public.service';
@@ -24,6 +26,7 @@ export class PublicBookingService {
     private readonly jwt: JwtService,
     private readonly reservations: ReservationsService,
     private readonly checkout: CheckoutService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private readonly logger = new Logger(PublicBookingService.name);
@@ -140,6 +143,33 @@ export class PublicBookingService {
     });
   }
 
+  /**
+   * Whether this customer wants messages about their bookings.
+   *
+   * On the same session as their bookings, so turning messages off never means
+   * "call the venue and ask them to do it" — an opt-out someone cannot act on
+   * themselves is not really an opt-out.
+   */
+  async messagePreferences(user: CustomerUser) {
+    const [row] = await this.db
+      .select({ optedOut: customers.notificationsOptedOut })
+      .from(customers)
+      .where(and(eq(customers.tenantId, user.tenantId), eq(customers.id, user.id)))
+      .limit(1);
+    if (!row) throw new NotFoundException('No record on this number.');
+    return { optedOut: row.optedOut };
+  }
+
+  async setMessagePreferences(user: CustomerUser, optedOut: boolean) {
+    const [row] = await this.db
+      .update(customers)
+      .set({ notificationsOptedOut: optedOut })
+      .where(and(eq(customers.tenantId, user.tenantId), eq(customers.id, user.id)))
+      .returning({ optedOut: customers.notificationsOptedOut });
+    if (!row) throw new NotFoundException('No record on this number.');
+    return { optedOut: row.optedOut };
+  }
+
   /** What the venue's policy would refund if this booking were cancelled now. */
   async cancellationQuote(user: CustomerUser, reservationId: string) {
     await this.assertOwn(user, reservationId);
@@ -176,6 +206,8 @@ export class PublicBookingService {
       reason: reason?.trim() || 'Cancelled by the customer',
       // The ledger entry is written below, and only if the money really moved.
       recordRefund: false,
+      // And so is the message, once the refund outcome is actually known.
+      suppressNotification: true,
     });
 
     let refund = { issued: false, detail: 'Nothing to refund.' };
@@ -202,6 +234,18 @@ export class PublicBookingService {
         );
       }
     }
+
+    await this.notifications.enqueue({
+      tenantId: user.tenantId,
+      reservationId,
+      templateKey: 'booking_cancelled',
+      extra:
+        quote.refundPaise <= 0
+          ? 'No refund applies to this booking.'
+          : refund.issued
+            ? `${formatPaise(quote.refundPaise)} has been refunded to your original payment method.`
+            : `A refund of ${formatPaise(quote.refundPaise)} is due — ${refund.detail}`,
+    });
 
     return {
       cancelled: true,

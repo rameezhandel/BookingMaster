@@ -17,6 +17,7 @@ import { formatPaise } from '../common/money';
 import { HoursService } from '../availability/hours.service';
 import { isWithinOpening, openingFor } from '../availability/resolve';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CancellationService } from '../cancellation/cancellation.service';
 import { hoursUntil, quoteRefund, type RefundQuote } from '../cancellation/resolve';
 import { CustomersService } from '../customers/customers.service';
@@ -49,6 +50,7 @@ export class ReservationsService {
     private readonly hours: HoursService,
     private readonly cancellation: CancellationService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ------------------------------------------------------------ writing --
@@ -106,6 +108,14 @@ export class ReservationsService {
           entityId: created.id,
           summary: `Booked ${resource.name} for ${formatPaise(amountPaise)}`,
           data: { start: dto.start, end: dto.end, amountPaise, outsideHours: !!dto.allowOutsideHours },
+        });
+
+        // Queued on this transaction, so the message and the booking commit
+        // together. Nothing is sent from the request path.
+        await this.notifications.enqueue({
+          tenantId: user.tenantId,
+          reservationId: created.id,
+          templateKey: 'booking_confirmed',
         });
 
         return created;
@@ -254,6 +264,15 @@ export class ReservationsService {
           method: dto.refundMethod ?? 'cash',
           note: dto.reason ? `Cancellation: ${dto.reason}` : 'Cancellation refund',
           createdBy: userId ?? null,
+        });
+      }
+
+      if (!dto.suppressNotification) {
+        await this.notifications.enqueue({
+          tenantId,
+          reservationId: id,
+          templateKey: 'booking_cancelled',
+          extra: refundMessage(refundPaise, !!dto.recordRefund),
         });
       }
 
@@ -470,6 +489,20 @@ export class ReservationsService {
     const rules = (await this.pricing.rulesForResources(tenantId, [resourceId])).get(resourceId) ?? [];
     return this.pricing.priceFor(interval, venue.timezone, rules) ?? 0;
   }
+}
+
+/**
+ * What to tell the customer about their money.
+ *
+ * Deliberately does not promise a refund is on its way unless one actually
+ * moved — "the venue will be in touch" is better than a message the venue then
+ * has to explain.
+ */
+function refundMessage(refundPaise: number, recordedInLedger: boolean): string {
+  if (refundPaise <= 0) return 'No refund applies to this booking.';
+  return recordedInLedger
+    ? `${formatPaise(refundPaise)} has been refunded.`
+    : `A refund of ${formatPaise(refundPaise)} is due — the venue will be in touch.`;
 }
 
 /**

@@ -76,6 +76,9 @@ export const venues = pgTable(
     /** Unique across the whole system: it appears in the public URL. */
     slug: text('slug'),
     isPublished: boolean('is_published').notNull().default(false),
+    notificationsEnabled: boolean('notifications_enabled').notNull().default(true),
+    /** Hours before a booking to send a reminder. Zero disables them. */
+    reminderHoursBefore: integer('reminder_hours_before').notNull().default(3),
     bookingWindowDays: integer('booking_window_days').notNull().default(30),
     minNoticeMinutes: integer('min_notice_minutes').notNull().default(60),
     /** How long a public slot is held while someone finishes booking. */
@@ -172,6 +175,7 @@ export const customers = pgTable(
     name: text('name').notNull(),
     phone: text('phone').notNull(),
     notes: text('notes'),
+    notificationsOptedOut: boolean('notifications_opted_out').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -366,4 +370,38 @@ export const otpChallenges = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ lookupIdx: index('otp_challenge_lookup_idx').on(t.venueId, t.phone, t.createdAt) }),
+);
+
+/**
+ * The outbox. A row is written in the same transaction as the thing it
+ * describes; a worker sends it afterwards.
+ */
+export const notifications = pgTable(
+  'notification',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    venueId: uuid('venue_id'),
+    customerId: uuid('customer_id'),
+    reservationId: uuid('reservation_id'),
+    channel: text('channel').$type<'whatsapp' | 'sms'>().notNull(),
+    template: text('template').notNull(),
+    params: jsonb('params').notNull().default([]),
+    preview: text('preview').notNull(),
+    toPhone: text('to_phone').notNull(),
+    status: text('status')
+      .$type<'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped'>()
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    provider: text('provider'),
+    providerMessageId: text('provider_message_id'),
+    error: text('error'),
+    dedupeKey: text('dedupe_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (t) => ({ tenantIdx: index('notification_tenant_idx').on(t.tenantId, t.createdAt) }),
 );

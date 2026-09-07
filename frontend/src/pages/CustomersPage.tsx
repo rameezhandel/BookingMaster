@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../components/Modal';
-import { get } from '../lib/api';
+import { ApiError, get, patch } from '../lib/api';
 import { useVenue } from '../lib/venue';
 import { rupees } from '../lib/format';
 import type { Customer, Page } from '../lib/types';
@@ -98,6 +98,8 @@ export function CustomersPage() {
             </div>
           </div>
 
+          <MessagePreference customer={detail} />
+
           {detail.history.length === 0 ? (
             <p className="faint">No bookings recorded yet.</p>
           ) : (
@@ -121,5 +123,49 @@ export function CustomersPage() {
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * "Stop texting me" — recorded where the desk hears it.
+ *
+ * Someone who asks in person and keeps getting messages is a complaint, and
+ * possibly a report. It has to be one click from the customer's record.
+ */
+function MessagePreference({ customer }: { customer: Customer }) {
+  const qc = useQueryClient();
+  const [optedOut, setOptedOut] = useState(customer.notificationsOptedOut);
+  useEffect(() => setOptedOut(customer.notificationsOptedOut), [customer.id, customer.notificationsOptedOut]);
+
+  const save = useMutation({
+    mutationFn: (next: boolean) =>
+      patch(`/customers/${customer.id}`, { notificationsOptedOut: next }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer', customer.id] });
+      qc.invalidateQueries({ queryKey: ['customers-page'] });
+    },
+    onError: () => setOptedOut(customer.notificationsOptedOut),
+  });
+
+  return (
+    <div className="field" style={{ margin: '14px 0 4px' }}>
+      <label className="checkline">
+        <input
+          type="checkbox"
+          checked={!optedOut}
+          disabled={save.isPending}
+          onChange={(e) => {
+            setOptedOut(!e.target.checked);
+            save.mutate(!e.target.checked);
+          }}
+        />
+        <span>Send this customer booking messages</span>
+      </label>
+      <div className="hint">
+        {save.error instanceof ApiError
+          ? `That did not save — ${save.error.message}`
+          : 'Untick if they have asked you to stop messaging them.'}
+      </div>
+    </div>
   );
 }

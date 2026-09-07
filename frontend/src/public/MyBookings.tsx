@@ -69,6 +69,7 @@ export function MyBookings({ slug, onClose }: { slug: string; onClose: () => voi
             setSession(slug, null);
             setToken(null);
             qc.removeQueries({ queryKey: ['my-bookings'] });
+            qc.removeQueries({ queryKey: ['my-prefs'] });
           }}
         >
           Sign out
@@ -76,7 +77,67 @@ export function MyBookings({ slug, onClose }: { slug: string; onClose: () => voi
       }
     >
       <BookingList slug={slug} token={token} onExpired={() => setToken(null)} />
+      <MessagePreference token={token} />
     </Panel>
+  );
+}
+
+/**
+ * Turning messages off, from the same place the bookings are.
+ *
+ * Someone who wants the texts to stop will stop them one way or another; the
+ * only question is whether that is a switch here or blocking the number, and
+ * only one of those is reversible.
+ */
+function MessagePreference({ token }: { token: string }) {
+  const { data } = useQuery({
+    queryKey: ['my-prefs'],
+    queryFn: () => api<{ optedOut: boolean }>('/public/my/preferences', { headers: auth(token) }),
+    retry: false,
+  });
+
+  // The tick follows the finger, not the network. A checkbox that ignores a tap
+  // for half a second gets tapped again, and the second tap undoes the first.
+  const [optedOut, setOptedOut] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (data) setOptedOut(data.optedOut);
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: (next: boolean) =>
+      api<{ optedOut: boolean }>('/public/my/preferences', {
+        method: 'PATCH',
+        headers: { ...auth(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optedOut: next }),
+      }),
+    onSuccess: (res) => setOptedOut(res.optedOut),
+    // Put it back rather than leaving it showing a preference we did not save.
+    onError: () => setOptedOut(data?.optedOut ?? false),
+  });
+
+  if (optedOut === null) return null;
+
+  return (
+    <div className="msg-pref">
+      <label className="checkline">
+        <input
+          id="mb-optout"
+          type="checkbox"
+          checked={!optedOut}
+          disabled={save.isPending}
+          onChange={(e) => {
+            setOptedOut(!e.target.checked);
+            save.mutate(!e.target.checked);
+          }}
+        />
+        <span>Message me about my bookings</span>
+      </label>
+      <div className="hint">
+        {save.error instanceof ApiError
+          ? `That did not save — ${save.error.message}`
+          : 'Confirmations, cancellations and a reminder before you play. Turning this off does not cancel anything.'}
+      </div>
+    </div>
   );
 }
 

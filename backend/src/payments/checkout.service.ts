@@ -19,6 +19,7 @@ import {
 import { PG_EXCLUSION_VIOLATION, PG_UNIQUE_VIOLATION } from '../common/errors';
 import { formatPaise } from '../common/money';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PAYMENT_GATEWAY, type GatewayEvent, type PaymentGateway } from './gateway/gateway';
 
 export type WebhookOutcome =
@@ -37,6 +38,7 @@ export class CheckoutService {
     @Inject(DB) private readonly db: Db,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -298,6 +300,12 @@ export class CheckoutService {
           paymentId: event.paymentId,
           ...(overpaidPaise > 0 ? { overpaidPaise } : {}),
         },
+      });
+
+      await this.notifications.enqueue({
+        tenantId: intent.tenantId,
+        reservationId: reservation.id,
+        templateKey: 'booking_confirmed',
       });
 
       return 'processed' as const;

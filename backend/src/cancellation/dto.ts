@@ -36,6 +36,16 @@ export class CancelReservationDto {
 
   /** Write the refund into the payment ledger now. */
   @IsOptional() @IsBoolean() recordRefund?: boolean;
+  /**
+   * Suppresses the cancellation message so the caller can send its own.
+   *
+   * The customer-facing flow refunds *after* cancelling — deliberately, so the
+   * slot goes back on sale without waiting on a gateway call — and only then
+   * knows whether to say "refunded to your card" or "the venue will be in
+   * touch". Sending from inside cancel() would guess, and guess wrong.
+   */
+  @IsOptional() @IsBoolean() suppressNotification?: boolean;
+
   @IsOptional() @IsIn(['cash', 'upi', 'card', 'bank_transfer', 'other']) refundMethod?:
     | 'cash'
     | 'upi'

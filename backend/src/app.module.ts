@@ -16,6 +16,7 @@ import { CustomersModule } from './customers/customers.module';
 import { DatabaseModule } from './db/database.module';
 import { TenantContextInterceptor } from './db/tenant.interceptor';
 import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PublicModule } from './public/public.module';
@@ -58,6 +59,7 @@ function webApp(): DynamicModule[] {
     ScheduleModule.forRoot(),
     DatabaseModule,
     AuditModule,
+    NotificationsModule,
     HealthModule,
     AuthModule,
     VenuesModule,

@@ -1,4 +1,4 @@
-import { IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class RequestOtpDto {
   @Matches(/^[+0-9][0-9 \-()]{6,19}$/, { message: 'Enter a valid phone number.' })
@@ -23,4 +23,9 @@ export class CreateHoldDto {
 export class CancelOwnBookingDto {
   /** Optional, and only ever a note: the refund comes from the venue's policy. */
   @IsOptional() @IsString() @MaxLength(300) reason?: string;
+}
+
+export class MessagePreferencesDto {
+  /** True means stop messaging me — about my own bookings included. */
+  @IsBoolean() optedOut: boolean;
 }
