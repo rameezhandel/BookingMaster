@@ -448,26 +448,29 @@ backend/
   src/
     common/          time, money, error mapping, paid-totals aggregate
     db/              drizzle schema, migration runner, seed
-    auth/            JWT sign-in, tenant scoping
+    auth/            sign-in, and the guard that reads role and account
+                     status from the database rather than the token
+    staff/           logins, invitations and roles
     venues/          venues and courts
     pricing/         price rules and the pure resolver
     calendar/        day and week availability
+    availability/    opening hours and date overrides
     reservations/    quick-book, blocks, cancellations, status
     series/          recurring bookings and the nightly extension job
     cancellation/    tiered refund policy and the refund resolver
-    payments/        the ledger
+    payments/        the ledger, plus checkout and the payment gateway
+    notifications/   the message outbox, templates and the sending worker
     reports/         billed, collected, outstanding
     audit/           append-only record of who did what
     public/          venue page, availability, holds, OTP identity
-    staff/           logins, invitations and roles
-    payments/        the ledger, plus checkout and the payment gateway
-    notifications/   the message outbox, templates and the sending worker
-  test/              unit tests plus the concurrency proof
+  test/              unit tests plus the concurrency, RLS, transaction and
+                     permission proofs
 frontend/
   src/
     lib/             api client, auth context, formatting
     components/      calendar cells, modals, customer picker
-    pages/           calendar, bookings, customers, reports, settings
+    pages/           the owner console
+    public/          the booking page players see
 Dockerfile           multi-stage; the web bundle is baked in and served by the API
 render.yaml          Render blueprint, migrations as a pre-deploy step
 fly.toml             Fly config, migrations as a release_command
@@ -489,9 +492,12 @@ The venue should connect **their own** Razorpay account. Pooling funds and payin
 out makes you a payment facilitator, with float, reconciliation and chargebacks
 attached. Be software first.
 
-**Next.** GST invoicing with a gapless per-tenant sequence, delivery receipts
-back from WhatsApp (`delivered` and `read` are already statuses on the row,
-waiting for the status webhook to set them), and an owner's daily digest.
+**Next.** The owner console on a phone — the public page was built phone-first,
+but the console's calendar, tables and modals are still desktop-shaped, and an
+owner standing at the desk is holding a phone. Then GST invoicing with a gapless
+per-tenant sequence, delivery receipts back from WhatsApp (`delivered` and
+`read` are already statuses on the row, waiting for the status webhook to set
+them), and an owner's daily digest.
 
 **Later — halls.** Wedding and function halls sell a *date*, not an hour, and the
 booking is a CRM pipeline — enquiry, site visit, quote, advance — before it is

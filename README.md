@@ -26,6 +26,10 @@ CONSTRAINT reservation_no_overlap EXCLUDE USING gist (
 - Staff logins with roles — invite by email, and switch someone off the day they leave
 - Append-only activity log
 
+Staff can take bookings, record payments and handle customers. Owners can also
+see revenue, change prices and opening hours, publish the booking page, and
+manage who has a login.
+
 **Public booking page** at `/v/<slug>`, no account needed
 
 - Live availability and the price on each slot
@@ -35,7 +39,8 @@ CONSTRAINT reservation_no_overlap EXCLUDE USING gist (
 
 ## Quick start
 
-Node 20+ and Postgres 16+.
+Node 20+, and Docker — or your own Postgres 16+ if you would rather not use the
+compose file.
 
 ```bash
 git clone https://github.com/rameezhandel/BookingMaster.git
@@ -85,6 +90,10 @@ If something still refuses to bind, `lsof -i :5442` names what already has it.
 | `TRUST_PROXY` | no | `true` only behind a proxy. Otherwise any client can forge `X-Forwarded-For` and walk around the rate limiter |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | no | Unset means a stub gateway that moves no money |
 | `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` | no | Unset means messages are written to the log instead of sent |
+| `PORT` | no | Defaults to `API_PORT` from the root `.env`, then `3010` |
+| `CORS_ORIGIN` | no | Only needed while the web app is on the Vite dev server. In production the API serves the bundle itself and this stays unset |
+| `JWT_EXPIRES_IN` | no | Staff session length, default `7d`. Customer sessions are fixed at two hours |
+| `DB_POOL_MAX` | no | Connections per instance, default `10` |
 
 The database role **must not** be a superuser and must not have `BYPASSRLS` —
 either one silently disables tenant isolation. The app checks its own role at
@@ -93,12 +102,21 @@ startup and refuses to boot in production if it can bypass.
 ## Tests
 
 ```bash
-npm test        # 128 tests; the integration ones need DATABASE_URL
+npm test        # 149 tests; the integration ones need DATABASE_URL
 ```
 
-Includes a concurrency proof that races 20 connections at one slot and asserts
-exactly one wins, row-level-security tests that try to read across tenants, and
-webhook signature tests over raw bytes.
+The ones worth knowing about:
+
+- **Concurrency** — 20 simultaneous connections race one slot; exactly one wins.
+- **Row-level security** — attempts to read and write across tenants, including
+  with the row id already in hand.
+- **Transactions** — the Postgres abort semantics that three bugs here depended
+  on, so the shape of the fix is not refactored away.
+- **Webhook signatures** — verified over raw bytes; re-serialising the JSON
+  reorders keys and stops matching.
+- **Staff and permissions** — single-use invitations under a deliberate race,
+  and the guards that stop an account being left with no active owner.
+- **Notifications** — deduplication, opt-out, claim-once delivery and backoff.
 
 ## Deploying
 
@@ -117,10 +135,12 @@ migrations as a release step. See [docs/DEPLOYING.md](docs/DEPLOYING.md).
 backend/
   migrations/     hand-written SQL — the exclusion constraint is not
                   expressible in the ORM
-  src/            NestJS: auth, venues, pricing, calendar, reservations,
+  src/            NestJS: auth, staff, venues, pricing, calendar, reservations,
                   series, cancellation, payments, public, notifications, audit
-  test/           unit tests plus the concurrency and RLS proofs
-frontend/         React + Vite: owner console and the public booking page
+  test/           unit tests plus the concurrency, RLS and permission proofs
+frontend/         React + Vite
+  src/pages/      the owner console
+  src/public/     the booking page players see
 docs/             architecture and deployment notes
 ```
 

@@ -2,7 +2,7 @@
   "name": "bookingmaster",
   "private": true,
   "version": "0.1.0",
-  "description": "Booking platform for sports venues. Phase 0: the venue owner's calendar.",
+  "description": "Booking platform for sports venues: an owner console and a public self-serve booking page.",
   "workspaces": ["backend", "frontend"],
   "scripts": {
     "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
