@@ -1,6 +1,9 @@
 # Local stack. `docker compose up db` for just Postgres while developing with
 # `npm run dev`, or `docker compose --profile app up --build` to run the whole
 # thing the way it runs in production.
+#
+# Host ports come from `.env` in this directory (see .env.example), so a machine
+# already running another Postgres does not have to edit a tracked file.
 services:
   db:
     image: postgres:16-alpine
@@ -10,7 +13,8 @@ services:
       POSTGRES_PASSWORD: bookingmaster
       POSTGRES_DB: bookingmaster
     ports:
-      - "5432:5432"
+      # Only the host side is configurable; inside the network it stays 5432.
+      - "${DB_PORT:-5442}:5432"
     volumes:
       - bookingmaster-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -40,7 +44,7 @@ services:
       # No proxy in front locally, so do not trust forwarded IPs.
       TRUST_PROXY: "false"
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3010}:3000"
 
 volumes:
   bookingmaster-pgdata:

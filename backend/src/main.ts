@@ -49,7 +49,7 @@ async function bootstrap() {
   // container runtime asks a process to stop.
   app.enableShutdownHooks();
 
-  const port = Number(process.env.PORT ?? 3000);
+  const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3010);
   await app.listen(port, '0.0.0.0');
   logger.log(`API listening on :${port} (${process.env.NODE_ENV ?? 'development'})`);
 }
