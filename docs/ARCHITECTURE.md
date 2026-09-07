@@ -606,7 +606,8 @@ Dockerfile           multi-stage; the web bundle is baked in and served by the A
 render.yaml          Render blueprint, migrations as a pre-deploy step
 fly.toml             Fly config, migrations as a release_command
 e2e/                 Playwright specs against the built app on a real database
-.github/workflows/   typecheck, tests and end-to-end on every pull request
+.github/workflows/   typecheck, tests, end-to-end, and the image built and
+                     booted, on every pull request
 ```
 
 ## Roadmap

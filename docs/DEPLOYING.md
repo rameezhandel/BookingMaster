@@ -12,6 +12,13 @@ migrations as a **release step**, not on instance boot: with more than one
 replica, boot-time migration means every replica races the same DDL. The
 `MIGRATE_ON_BOOT` env var exists for single-instance and local use only.
 
+The release step is `node backend/dist/db/migrate.js`, and it reaches the
+container as arguments to the entrypoint. The entrypoint runs them instead of
+the server — a detail worth stating because getting it wrong is invisible until
+a deploy: an entrypoint that ignores its arguments starts a second server, so
+the release machine never exits and the deploy goes out with the migrations
+unapplied. CI builds the image and checks it on every pull request.
+
 Point health checks at `/health/ready`, which verifies the database is actually
 reachable. `/health` is liveness only and deliberately does not touch the
 database, so a database blip restarts nothing.

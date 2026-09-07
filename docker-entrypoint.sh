@@ -1,9 +1,19 @@
 #!/bin/sh
 set -e
 
-# Migrations are opt-in rather than automatic. With more than one instance
-# running, every replica would otherwise race the same DDL on deploy. Prefer a
-# release step:  docker run --rm <image> node backend/dist/db/migrate.js
+# A command passed to `docker run` replaces the server rather than preceding it.
+#
+# This is how migrations run as a release step, and it is not optional: Fly's
+# release_command and Render's preDeployCommand both arrive here as arguments.
+# An entrypoint that ignores them boots a second copy of the server instead,
+# which on Fly means a release machine that never exits and a deploy that goes
+# out with the migrations unapplied.
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
+# Migrations on boot are opt-in and for a single instance only. With more than
+# one replica, every one of them would race the same DDL on deploy.
 if [ "$MIGRATE_ON_BOOT" = "true" ]; then
   echo "Running migrations..."
   node backend/dist/db/migrate.js
