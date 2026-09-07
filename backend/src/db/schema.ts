@@ -58,10 +58,39 @@ export const users = pgTable(
     passwordHash: text('password_hash').notNull(),
     name: text('name').notNull(),
     role: text('role').$type<'owner' | 'staff'>().notNull().default('owner'),
+    isActive: boolean('is_active').notNull().default(true),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ tenantIdx: index('app_user_tenant_idx').on(t.tenantId) }),
+);
+
+/**
+ * An invitation to join a venue's account.
+ *
+ * Only the token's hash is stored, for the same reason OTP codes are hashed: a
+ * leaked backup must not hand out working invitations.
+ */
+export const staffInvites = pgTable(
+  'staff_invite',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    role: text('role').$type<'owner' | 'staff'>().notNull().default('staff'),
+    tokenHash: text('token_hash').notNull(),
+    invitedBy: uuid('invited_by'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedUser: uuid('accepted_user'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ tenantIdx: index('staff_invite_tenant_idx').on(t.tenantId, t.createdAt) }),
 );
 
 export const venues = pgTable(

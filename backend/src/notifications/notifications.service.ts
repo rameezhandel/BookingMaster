@@ -144,10 +144,18 @@ export class NotificationsService {
    * not at all, is how customers get told twice.
    */
   async deliverDue(limit = 25): Promise<{ sent: number; failed: number; retrying: number }> {
+    // Due according to the database's clock, not this process's.
+    //
+    // `next_attempt_at` is written by Postgres, which keeps microseconds, while
+    // a JavaScript Date is truncated to milliseconds — so a row scheduled in
+    // the same millisecond as this query reads as not-yet-due and is skipped.
+    // Across several app replicas the same comparison also drifts with whatever
+    // each machine thinks the time is. One clock, and it is the one that wrote
+    // the value.
     const due = await this.db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.status, 'pending'), lte(notifications.nextAttemptAt, new Date())))
+      .where(and(eq(notifications.status, 'pending'), lte(notifications.nextAttemptAt, sql`now()`)))
       .orderBy(asc(notifications.nextAttemptAt))
       .limit(limit);
 
@@ -209,7 +217,8 @@ export class NotificationsService {
       await this.db
         .update(notifications)
         .set({
-          nextAttemptAt: new Date(Date.now() + waitMinutes * 60_000),
+          // Same clock as the read above.
+          nextAttemptAt: sql`now() + make_interval(mins => ${waitMinutes})`,
           error: outcome.error,
         })
         .where(eq(notifications.id, row.id));

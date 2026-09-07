@@ -23,6 +23,7 @@ CONSTRAINT reservation_no_overlap EXCLUDE USING gist (
 - Payments in cash, UPI, card or bank transfer — part payments and refunds included
 - Tiered cancellation policy, customer history, revenue reports
 - WhatsApp confirmations, cancellations and reminders, with a log of what was sent
+- Staff logins with roles — invite by email, and switch someone off the day they leave
 - Append-only activity log
 
 **Public booking page** at `/v/<slug>`, no account needed

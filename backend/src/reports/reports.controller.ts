@@ -1,5 +1,6 @@
 import { Controller, Get, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OwnerOnly } from '../auth/roles.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { ReportsService } from './reports.service';
 
@@ -8,6 +9,7 @@ import { ReportsService } from './reports.service';
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
+  @OwnerOnly()
   @Get('summary')
   summary(
     @CurrentUser() user: AuthUser,

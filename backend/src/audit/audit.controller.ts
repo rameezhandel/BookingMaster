@@ -1,5 +1,6 @@
 import { Controller, DefaultValuePipe, Get, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OwnerOnly } from '../auth/roles.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { AuditService } from './audit.service';
 
@@ -8,6 +9,7 @@ import { AuditService } from './audit.service';
 export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
+  @OwnerOnly()
   @Get()
   list(
     @CurrentUser() user: AuthUser,

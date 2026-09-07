@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OwnerOnly } from '../auth/roles.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { CreatePriceRuleDto, UpdatePriceRuleDto } from './dto';
 import { PricingService } from './pricing.service';
@@ -26,6 +27,7 @@ export class PricingController {
     return this.pricing.list(user.tenantId, id);
   }
 
+  @OwnerOnly()
   @Post('resources/:id/price-rules')
   create(
     @CurrentUser() user: AuthUser,
@@ -35,6 +37,7 @@ export class PricingController {
     return this.pricing.create(user.tenantId, id, dto);
   }
 
+  @OwnerOnly()
   @Patch('price-rules/:id')
   update(
     @CurrentUser() user: AuthUser,
@@ -44,6 +47,7 @@ export class PricingController {
     return this.pricing.update(user.tenantId, id, dto);
   }
 
+  @OwnerOnly()
   @Delete('price-rules/:id')
   remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.pricing.remove(user.tenantId, id);
