@@ -3,7 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AvailabilityModule } from '../availability/availability.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { ReservationsModule } from '../reservations/reservations.module';
 import { CustomerJwtStrategy } from './customer-auth';
 import { HoldsScheduler } from './holds.scheduler';
 import { HoldsService } from './holds.service';
@@ -17,6 +19,8 @@ import { PublicService } from './public.service';
   imports: [
     AvailabilityModule,
     PricingModule,
+    ReservationsModule,
+    PaymentsModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

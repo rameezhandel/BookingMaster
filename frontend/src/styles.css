@@ -410,3 +410,17 @@ table.grid th .hours { display: block; font-weight: 500; color: var(--text-faint
 
 button.pub-slot { cursor: pointer; font: inherit; }
 button.pub-slot.free:hover { border-color: var(--accent); }
+
+/* --------------------------------------------------- my bookings -- */
+
+.my-booking {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 11px 12px; margin-bottom: 10px; background: var(--surface);
+}
+.my-booking.is-cancelled { opacity: 0.6; }
+.cancel-box {
+  margin-top: 8px; padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.cancel-box p { font-size: 13px; }

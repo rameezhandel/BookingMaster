@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentCustomer, CustomerAuthGuard, type CustomerUser } from './customer-auth';
-import { CreateHoldDto, RequestOtpDto, VerifyOtpDto } from './dto';
+import { CancelOwnBookingDto, CreateHoldDto, RequestOtpDto, VerifyOtpDto } from './dto';
 import { PublicBookingService } from './public-booking.service';
 import { PublicService } from './public.service';
 
@@ -68,5 +68,20 @@ export class PublicBookingController {
   @Get('my/bookings')
   mine(@CurrentCustomer() user: CustomerUser) {
     return this.booking.mine(user);
+  }
+
+  /** What the venue's policy would refund, shown before anything is cancelled. */
+  @Get('my/bookings/:id/cancellation-quote')
+  quote(@CurrentCustomer() user: CustomerUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.booking.cancellationQuote(user, id);
+  }
+
+  @Post('my/bookings/:id/cancel')
+  cancel(
+    @CurrentCustomer() user: CustomerUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelOwnBookingDto,
+  ) {
+    return this.booking.cancelOwn(user, id, dto.reason);
   }
 }

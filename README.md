@@ -357,6 +357,34 @@ verification, replay rejection, idempotency, confirmation, and the late-refund
 path all run against real code. In production the stub refuses to work at all —
 a stub that silently accepts money is worse than no payments.
 
+### Players can cancel their own bookings
+
+Confirm the phone number, see your bookings at that venue, cancel one. The
+refund is quoted from the venue's policy **before** anything is cancelled —
+finding out what you get back after the slot is gone is the wrong order, and it
+is what people phone up angry about.
+
+The refund amount is always the policy's, never one the request supplies. What
+happens next depends on how the booking was paid:
+
+- **Paid through the gateway** — the money is sent back immediately, and only
+  then is the refund written to the ledger. Recording it first would tell a
+  customer they had been refunded when they had not.
+- **Paid in cash at the counter** — there is nothing for a gateway to return.
+  The response says to collect it from the venue, the ledger honestly still
+  shows the money held, and the owner settles it in person.
+- **The gateway refund fails** — that is money the venue owes. It is logged at
+  error level with everything needed to settle by hand, and the customer is told
+  the venue will arrange it rather than that it is on its way.
+
+The slot goes back on sale before any of that: a refund that fails is money
+owed, not a booking still standing.
+
+A booking id belonging to someone else returns the same 404 as one that does not
+exist, so ids cannot be probed. The session is short-lived, scoped to one venue,
+and kept in `sessionStorage` rather than `localStorage` — these pages get opened
+on shared and borrowed phones, so closing the tab should end it.
+
 ### Tenant isolation is enforced by the database
 
 Every tenant-owned row carries `tenant_id` and every service takes it as an

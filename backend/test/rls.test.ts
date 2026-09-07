@@ -122,10 +122,25 @@ describe('tenant isolation', () => {
       'booking_series',
       'cancellation_tier',
       'audit_event',
+      'otp_challenge',
+      'payment_intent',
     ]) {
       const { rows } = await pool.query(`SELECT count(*)::int AS n FROM ${table}`);
       assert.equal(rows[0].n, 0, `${table} leaked rows with no tenant context`);
     }
+  });
+
+  it('keeps gateway events out of reach of any tenant context', async () => {
+    // Raw webhook payloads are infrastructure, not tenant data, and nothing
+    // reads them through a request. Only a system context may see them at all,
+    // so even a correctly scoped tenant gets nothing.
+    await asTenant(alpha);
+    const { rows } = await pool.query('SELECT count(*)::int AS n FROM gateway_event');
+    assert.equal(rows[0].n, 0);
+
+    await asNobody();
+    const none = await pool.query('SELECT count(*)::int AS n FROM gateway_event');
+    assert.equal(none.rows[0].n, 0);
   });
 
   it('keeps the audit trail append-only', async () => {

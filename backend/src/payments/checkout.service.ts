@@ -381,6 +381,66 @@ export class CheckoutService {
     };
   }
 
+  /**
+   * Sends money back for a cancelled booking that was paid through the gateway.
+   *
+   * Returns whether the refund actually left, because the caller must not tell
+   * a customer they have been refunded when they have not. A failure here is
+   * money the venue still owes, so it is logged with everything needed to
+   * settle it by hand.
+   */
+  async refundForCancellation(
+    tenantId: string,
+    reservationId: string,
+    amountPaise: number,
+    reason: string,
+  ): Promise<{ issued: boolean; detail: string }> {
+    if (amountPaise <= 0) return { issued: false, detail: 'Nothing to refund.' };
+
+    const [intent] = await this.db
+      .select()
+      .from(paymentIntents)
+      .where(
+        and(
+          eq(paymentIntents.tenantId, tenantId),
+          eq(paymentIntents.reservationId, reservationId),
+          eq(paymentIntents.status, 'paid'),
+        ),
+      )
+      .limit(1);
+
+    // Paid in cash at the counter, or not paid at all: there is nothing for the
+    // gateway to send back, and the venue settles it in person.
+    if (!intent?.gatewayPaymentId) {
+      return { issued: false, detail: 'Collect this refund from the venue.' };
+    }
+    if (intent.gateway !== this.gateway.name) {
+      this.logger.warn(
+        `Booking ${reservationId} was paid via ${intent.gateway} but ${this.gateway.name} is active; ` +
+          `${formatPaise(amountPaise)} must be refunded by hand.`,
+      );
+      return { issued: false, detail: 'The venue will arrange this refund.' };
+    }
+
+    try {
+      await this.gateway.refund(intent.gatewayPaymentId, amountPaise, reason);
+    } catch (err) {
+      this.logger.error(
+        `REFUND FAILED for payment ${intent.gatewayPaymentId} (booking ${reservationId}, ` +
+          `${formatPaise(amountPaise)}): ${err instanceof Error ? err.message : err}. ` +
+          `This must be refunded by hand.`,
+      );
+      return { issued: false, detail: 'The venue will arrange this refund.' };
+    }
+
+    await this.db
+      .update(paymentIntents)
+      .set({ status: 'refunded', refundReason: reason })
+      .where(eq(paymentIntents.id, intent.id));
+
+    return { issued: true, detail: 'Refunded to your original payment method.' };
+  }
+
   /** Whether this venue expects payment before confirming. */
   async requiresPrepayment(venueId: string) {
     const [venue] = await this.db.select().from(venues).where(eq(venues.id, venueId)).limit(1);

@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { get } from '../lib/api';
 import { rupees } from '../lib/format';
 import { BookingFlow } from './BookingFlow';
+import { MyBookings } from './MyBookings';
 
 interface PublicCourt {
   id: string;
@@ -57,6 +58,7 @@ export function PublicVenuePage() {
     null,
   );
   const [justBooked, setJustBooked] = useState(false);
+  const [showMine, setShowMine] = useState(false);
 
   const { data: venue, isLoading, error } = useQuery({
     queryKey: ['public-venue', slug],
@@ -103,7 +105,10 @@ export function PublicVenuePage() {
   return (
     <div className="public-shell">
       <header className="public-head">
-        <h1>{venue.name}</h1>
+        <div className="row wrap" style={{ alignItems: 'flex-start' }}>
+          <h1 style={{ flex: 1 }}>{venue.name}</h1>
+          <button onClick={() => setShowMine(true)}>My bookings</button>
+        </div>
         {venue.address && <p className="muted">{venue.address}</p>}
         {venue.phone && (
           <p>
@@ -199,6 +204,8 @@ export function PublicVenuePage() {
           Booking confirmed. The venue has your number.
         </div>
       )}
+
+      {showMine && <MyBookings slug={slug} onClose={() => setShowMine(false)} />}
 
       {picked && (
         <BookingFlow

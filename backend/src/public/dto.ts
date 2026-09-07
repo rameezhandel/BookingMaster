@@ -19,3 +19,8 @@ export class CreateHoldDto {
   @IsISO8601() start: string;
   @IsISO8601() end: string;
 }
+
+export class CancelOwnBookingDto {
+  /** Optional, and only ever a note: the refund comes from the venue's policy. */
+  @IsOptional() @IsString() @MaxLength(300) reason?: string;
+}

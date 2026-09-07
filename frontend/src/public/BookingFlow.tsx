@@ -1,7 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
-import { ApiError, api, post } from '../lib/api';
+import { ApiError, api } from '../lib/api';
+import { getSession } from './customer-session';
+import { SignInDialog } from './SignInDialog';
 import { rupees } from '../lib/format';
 
 interface Slot {
@@ -21,7 +23,7 @@ interface Hold {
   end: string;
 }
 
-type Step = 'phone' | 'code' | 'confirm' | 'paying' | 'done';
+type Step = 'identify' | 'confirm' | 'paying' | 'done';
 
 /**
  * Booking, for someone who is not signed in and does not want an account.
@@ -46,13 +48,9 @@ export function BookingFlow({
   onClose: () => void;
   onBooked: () => void;
 }) {
-  const [step, setStep] = useState<Step>('phone');
-  const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [challengeId, setChallengeId] = useState('');
-  const [maskedPhone, setMaskedPhone] = useState('');
-  const [token, setToken] = useState('');
+  const [step, setStep] = useState<Step>('identify');
+  // A player who signed in earlier on this page should not be asked again.
+  const [token, setToken] = useState(() => getSession(slug) ?? '');
   const [hold, setHold] = useState<Hold | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [payment, setPayment] = useState<{ orderId: string; gateway: string } | null>(null);
@@ -72,39 +70,32 @@ export function BookingFlow({
     return () => clearInterval(timer);
   }, [hold]);
 
-  const requestCode = useMutation({
-    mutationFn: () =>
-      post<{ challengeId: string; phone: string }>(
-        `/public/venues/${encodeURIComponent(slug)}/otp/request`,
-        { phone },
-      ),
-    onSuccess: (res) => {
-      setChallengeId(res.challengeId);
-      setMaskedPhone(res.phone);
-      setStep('code');
-    },
-  });
-
-  const verify = useMutation({
-    mutationFn: () =>
-      post<{ token: string }>(`/public/venues/${encodeURIComponent(slug)}/otp/verify`, {
-        challengeId,
-        code,
-        ...(name.trim() ? { name: name.trim() } : {}),
-      }),
-    onSuccess: async (res) => {
-      setToken(res.token);
-      // Hold the slot the moment identity is proved, not after the customer
-      // reads the summary: the wait between those is where slots get lost.
-      const held = await api<Hold>('/public/holds', {
+  const takeHold = useMutation<Hold, Error, string>({
+    mutationFn: (sessionToken: string) =>
+      api<Hold>('/public/holds', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${res.token}` },
+        headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ resourceId: courtId, start: slot.start, end: slot.end }),
-      });
+      }),
+    onSuccess: (held) => {
       setHold(held);
       setStep('confirm');
     },
   });
+
+  // Hold the slot the moment identity is proved, not after the summary is read:
+  // the wait in between is where slots get lost to someone quicker.
+  function onSignedIn(sessionToken: string) {
+    setToken(sessionToken);
+    takeHold.mutate(sessionToken);
+  }
+
+  // Already signed in: skip straight to holding the slot.
+  useEffect(() => {
+    if (step === 'identify' && token && !hold && !takeHold.isPending && !takeHold.isError) {
+      takeHold.mutate(token);
+    }
+  }, [step, token, hold, takeHold]);
 
   const confirm = useMutation({
     mutationFn: () =>
@@ -180,7 +171,7 @@ export function BookingFlow({
     onClose();
   }
 
-  const error = [requestCode.error, verify.error, confirm.error, startPayment.error].find(
+  const error = [takeHold.error, confirm.error, startPayment.error].find(
     (e) => e instanceof ApiError,
   ) as ApiError | undefined;
 
@@ -217,67 +208,12 @@ export function BookingFlow({
 
           {error && <div className="msg error">{error.message}</div>}
 
-          {step === 'phone' && (
-            <>
-              <div className="field">
-                <label htmlFor="bf-phone">Your mobile number</label>
-                <input
-                  id="bf-phone"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 98450 00000"
-                />
-                <div className="hint">We will text you a code to confirm it is you.</div>
-              </div>
-              <div className="field">
-                <label htmlFor="bf-name">Your name</label>
-                <input
-                  id="bf-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="So the venue knows who to expect"
-                />
-              </div>
-              <button
-                className="primary"
-                style={{ width: '100%', padding: 10 }}
-                disabled={phone.trim().length < 7 || requestCode.isPending}
-                onClick={() => requestCode.mutate()}
-              >
-                {requestCode.isPending ? 'Sending…' : 'Send code'}
-              </button>
-            </>
-          )}
-
-          {step === 'code' && (
-            <>
-              <div className="field">
-                <label htmlFor="bf-code">Code sent to {maskedPhone}</label>
-                <input
-                  id="bf-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="······"
-                  style={{ letterSpacing: '0.4em', fontSize: 20, textAlign: 'center' }}
-                />
-              </div>
-              <button
-                className="primary"
-                style={{ width: '100%', padding: 10 }}
-                disabled={code.length !== 6 || verify.isPending}
-                onClick={() => verify.mutate()}
-              >
-                {verify.isPending ? 'Checking…' : 'Confirm number'}
-              </button>
-              <button className="ghost sm" style={{ width: '100%', marginTop: 8 }} onClick={() => setStep('phone')}>
-                Use a different number
-              </button>
-            </>
+          {step === 'identify' && (
+            token && takeHold.isPending ? (
+              <p className="faint">Holding this slot for you…</p>
+            ) : (
+              <SignInDialog slug={slug} askName onSignedIn={onSignedIn} />
+            )
           )}
 
           {step === 'confirm' && hold && (
